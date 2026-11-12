@@ -9,7 +9,11 @@ import { apiRouter } from "./routes/index.js";
 
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
+// آدرس‌های ثابت فرانت‌اند (فقط مبدأ، بدون مسیر و بدون / آخر)
+const EXTRA_ORIGINS = ["https://rjrbyjtj-creator.github.io"];
+
 function isAllowedOrigin(origin: string): boolean {
+  if (EXTRA_ORIGINS.includes(origin)) return true;
   if (env.clientOrigins.includes(origin)) return true;
 
   // در حالت توسعه، هر پورت localhost و باز کردن مستقیم فایل HTML (Origin: null) مجاز است.
@@ -22,7 +26,13 @@ export function createApp() {
   app.disable("x-powered-by");
   if (env.TRUST_PROXY > 0) app.set("trust proxy", env.TRUST_PROXY);
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // این سرور فقط API است و باید از سایت‌های دیگر (گیت‌هاب‌پیج) قابل فراخوانی باشد.
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    }),
+  );
+
   app.use(
     cors({
       origin(
@@ -30,13 +40,21 @@ export function createApp() {
         callback: (error: Error | null, allow?: boolean) => void,
       ) {
         // درخواست بدون Origin (curl، Postman، سرور به سرور) مجاز است.
-        callback(null, !origin || isAllowedOrigin(origin));
+        const allowed = !origin || isAllowedOrigin(origin);
+        if (!allowed) {
+          console.warn("CORS blocked origin:", origin, "| allowed:", [
+            ...EXTRA_ORIGINS,
+            ...env.clientOrigins,
+          ]);
+        }
+        callback(null, allowed);
       },
       methods: ["GET", "POST", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
       maxAge: 600,
     }),
   );
+
   app.use(requestLogger);
   app.use(express.json({ limit: "10kb" }));
 
