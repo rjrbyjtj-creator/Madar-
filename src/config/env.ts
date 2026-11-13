@@ -14,10 +14,10 @@ const envSchema = z.object({
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(1),
   GEMINI_API_KEY: z.string().default(""),
   GEMINI_MODEL: z.string().min(1).default("gemini-2.5-flash"),
+  GEMINI_TTS_MODEL: z.string().min(1).default("gemini-3.1-flash-tts-preview"),
 });
 
 const parsed = envSchema.safeParse(process.env);
-
 if (!parsed.success) {
   console.error("Invalid environment configuration (.env):");
   for (const issue of parsed.error.issues) {
@@ -27,7 +27,6 @@ if (!parsed.success) {
 }
 
 const data = parsed.data;
-
 export const env = {
   ...data,
   isProduction: data.NODE_ENV === "production",
