@@ -11,7 +11,7 @@ const envSchema = z.object({
   OTP_EXPIRES_MINUTES: z.coerce.number().int().min(1).max(30).default(3),
   OTP_RESEND_SECONDS: z.coerce.number().int().min(10).max(600).default(60),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
-  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(1),
   GEMINI_API_KEY: z.string().default(""),
   GEMINI_MODEL: z.string().min(1).default("gemini-2.5-flash"),
 });
