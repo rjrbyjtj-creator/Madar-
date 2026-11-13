@@ -40,7 +40,7 @@ export function createApp() {
         }
         callback(null, allowed);
       },
-      methods: ["GET", "POST", "OPTIONS"],
+      methods: ["GET", "POST", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
       maxAge: 600,
     }),
