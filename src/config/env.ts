@@ -13,7 +13,7 @@ const envSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
   GEMINI_API_KEY: z.string().default(""),
-  GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
+  GEMINI_MODEL: z.string().min(1).default("gemini-2.5-flash"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -21,7 +21,7 @@ const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
   console.error("Invalid environment configuration (.env):");
   for (const issue of parsed.error.issues) {
-    console.error(\` - \${issue.path.join(".")}: \${issue.message}\`);
+    console.error(` - ${issue.path.join(".")}: ${issue.message}`);
   }
   process.exit(1);
 }
