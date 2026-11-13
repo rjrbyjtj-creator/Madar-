@@ -51,8 +51,12 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     });
   }
 
-  const history: GeminiMessage[] = conversation.messages
-    .slice(-11)
+  // Keep a compact, correctly ordered context window. Gemini conversations
+  // must begin with a user turn; slicing an odd number of stored messages
+  // could otherwise make the history start with a model turn.
+  const recentMessages = conversation.messages.slice(-10);
+  const firstUserIndex = recentMessages.findIndex((item) => item.role === "user");
+  const history: GeminiMessage[] = (firstUserIndex >= 0 ? recentMessages.slice(firstUserIndex) : [])
     .map((item) => ({ role: item.role as "user" | "model", content: item.content }));
 
   const reply = await generateGeminiReply(
@@ -65,6 +69,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     { role: "model", content: reply, createdAt: new Date() },
   );
   if (conversation.messages.length <= 2) conversation.title = latestUserMessage.slice(0, 72);
+  // Bound document growth so very long chats do not make every future turn slow.
+  if (conversation.messages.length > 100) {
+    conversation.messages.splice(0, conversation.messages.length - 100);
+  }
   await conversation.save();
 
   res.json({
