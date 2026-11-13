@@ -1,8 +1,8 @@
-import mongoose from "mongoose";
+import mongoose, { type HydratedDocument } from "mongoose";
 import { z } from "zod";
 import type { Request, Response } from "express";
 import { AppError } from "../utils/errors.js";
-import { ChatConversation } from "../models/ChatConversation.js";
+import { ChatConversation, type ChatConversationDocument } from "../models/ChatConversation.js";
 import { generateGeminiReply, type GeminiMessage } from "../services/gemini.service.js";
 import { generateGeminiSpeech } from "../services/gemini-tts.service.js";
 
@@ -35,7 +35,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const input = parsed.data;
   const owner = currentUserId(res);
-  let conversation = null;
+  let conversation: HydratedDocument<ChatConversationDocument> | null = null;
   let history: GeminiMessage[] = [];
   let userMessage = input.message?.trim() ?? "";
 
