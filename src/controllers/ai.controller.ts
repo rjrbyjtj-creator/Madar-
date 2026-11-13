@@ -78,8 +78,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 export async function listConversations(_req: Request, res: Response): Promise<void> {
   const user = res.locals.user as AuthUser;
   const conversations = await Conversation.find({ user: user._id })
-    .select("_id title createdAt updatedAt")
-    .sort({ updatedAt: -1 })
+    .select("_id title isPinned createdAt updatedAt")
+    .sort({ isPinned: -1, updatedAt: -1 })
     .limit(100)
     .lean();
   res.json({ ok: true, conversations });
@@ -119,4 +119,28 @@ export async function deleteConversation(req: Request, res: Response): Promise<v
   const deleted = await Conversation.findOneAndDelete({ _id: id, user: user._id });
   if (!deleted) throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
   res.json({ ok: true });
+}
+
+export async function renameConversation(req: Request, res: Response): Promise<void> {
+  const user = res.locals.user as AuthUser;
+  const id = String(req.params.id ?? "");
+  const title = z.string().trim().min(1).max(80).safeParse(req.body?.title);
+  if (!mongoose.isValidObjectId(id)) throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
+  if (!title.success) throw new AppError(400, "INVALID_TITLE", "نام گفتگو باید بین ۱ تا ۸۰ نویسه باشد.");
+  const conversation = await Conversation.findOneAndUpdate(
+    { _id: id, user: user._id }, { $set: { title: title.data } }, { new: true },
+  ).select("_id title isPinned").lean();
+  if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
+  res.json({ ok: true, conversation });
+}
+
+export async function toggleConversationPin(req: Request, res: Response): Promise<void> {
+  const user = res.locals.user as AuthUser;
+  const id = String(req.params.id ?? "");
+  if (!mongoose.isValidObjectId(id)) throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
+  const conversation = await Conversation.findOne({ _id: id, user: user._id });
+  if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
+  conversation.isPinned = !conversation.isPinned;
+  await conversation.save();
+  res.json({ ok: true, isPinned: conversation.isPinned });
 }
