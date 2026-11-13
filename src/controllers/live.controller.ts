@@ -39,7 +39,7 @@ export async function createLiveToken(
     const ai = new GoogleGenAI({
       apiKey: env.GEMINI_API_KEY,
       httpOptions: {
-        apiVersion: "v1alpha",
+        apiVersion: "v1beta",
       },
     });
 
