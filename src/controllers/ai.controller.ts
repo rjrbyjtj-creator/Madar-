@@ -13,6 +13,7 @@ const messageSchema = z.object({
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
+  persona: z.enum(["balanced","friendly","buddy","witty"]).optional(),
   messages: z.array(messageSchema).min(1).max(12).optional(),
 }).refine((value) => Boolean(value.message || value.messages?.some((item) => item.role === "user")), {
   message: "A user message is required.",
@@ -56,7 +57,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const reply = await generateGeminiReply(
     [...history, { role: "user", content: latestUserMessage }],
-    { name: user.name, role: user.role },
+    { name: user.name, role: user.role, persona: parsed.data.persona ?? "balanced" },
   );
 
   conversation.messages.push(
