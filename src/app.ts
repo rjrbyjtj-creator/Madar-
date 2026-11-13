@@ -7,7 +7,7 @@ import { apiLimiter } from "./middlewares/rateLimit.js";
 import { requestLogger } from "./middlewares/requestLogger.js";
 import { apiRouter } from "./routes/index.js";
 
-const LOCAL_ORIGIN = /^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?$/;
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const EXTRA_ORIGINS = ["https://rjrbyjtj-creator.github.io"];
 
 function isAllowedOrigin(origin: string): boolean {
@@ -47,7 +47,6 @@ export function createApp() {
   );
 
   app.use(requestLogger);
-  // Chat history is bounded in the AI controller; keep the HTTP body limit finite.
   app.use(express.json({ limit: "40kb" }));
 
   app.get("/health", (_req: Request, res: Response) => {
