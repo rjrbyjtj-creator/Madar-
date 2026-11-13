@@ -32,3 +32,6 @@ export const loginLimiter = limiter({ windowMinutes: 15, limit: 10, skipSuccessf
 
 /** چت هوش مصنوعی: 20 درخواست در هر 10 دقیقه برای هر IP. */
 export const aiChatLimiter = limiter({ windowMinutes: 10, limit: 20 });
+
+/** تولید صدای Gemini: محدودیت جداگانه برای کنترل هزینه و سوءاستفاده. */
+export const aiTtsLimiter = limiter({ windowMinutes: 10, limit: 12 });
