@@ -29,3 +29,6 @@ export const verifyLimiter = limiter({ windowMinutes: 10, limit: 15 });
 
 /** ورود؛ فقط تلاش‌های ناموفق شمرده می‌شوند. */
 export const loginLimiter = limiter({ windowMinutes: 15, limit: 10, skipSuccessful: true });
+
+/** چت هوش مصنوعی: 20 درخواست در هر 10 دقیقه برای هر IP. */
+export const aiChatLimiter = limiter({ windowMinutes: 10, limit: 20 });
