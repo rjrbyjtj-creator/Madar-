@@ -15,6 +15,8 @@ const conversationSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     title: { type: String, required: true, trim: true, maxlength: 80 },
+    isPinned: { type: Boolean, default: false },
+    shareToken: { type: String, default: null, sparse: true, index: true },
     messages: { type: [messageSchema], default: [] },
   },
   { timestamps: true, versionKey: false },
