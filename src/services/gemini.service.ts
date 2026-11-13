@@ -108,13 +108,13 @@ export async function generateGeminiReply(
           const sources = chunks
             .map((chunk: { web?: { uri?: string; title?: string } }) => chunk.web)
             .filter((web: { uri?: string } | undefined): web is { uri: string; title?: string } =>
-              Boolean(web?.uri && /^https?:\\/\\//i.test(web.uri)))
+              Boolean(web?.uri && /^https?:\/\//i.test(web.uri)))
             .filter((web: { uri: string }, index: number, all: { uri: string }[]) =>
               all.findIndex((item) => item.uri === web.uri) === index)
             .slice(0, 6);
           if (sources.length) {
-            finalAnswer += "\\n\\n### منابع وب\\n" + sources.map((source: { uri: string; title?: string }, index: number) =>
-              `${index + 1}. [${(source.title || "منبع وب").replace(/[\\[\\]]/g, "")}](${source.uri})`).join("\\n");
+            finalAnswer += "\n\n### منابع وب\n" + sources.map((source: { uri: string; title?: string }, index: number) =>
+              `${index + 1}. [${(source.title || "منبع وب").replace(/[\[\]]/g, "")}](${source.uri})`).join("\n");
           }
         }
         if (model !== env.GEMINI_MODEL) {
