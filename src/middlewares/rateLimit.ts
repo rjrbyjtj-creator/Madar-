@@ -24,3 +24,6 @@ export const verifyLimiter = limiter({ windowMinutes: 10, limit: 15 });
 export const loginLimiter = limiter({ windowMinutes: 15, limit: 10, skipSuccessful: true });
 export const aiChatLimiter = limiter({ windowMinutes: 10, limit: 20 });
 export const aiSpeechLimiter = limiter({ windowMinutes: 10, limit: 15 });
+
+export const aiLiveTokenLimiter = limiter({ windowMinutes: 10, limit: 8 });
+export const aiVoiceTurnLimiter = limiter({ windowMinutes: 10, limit: 30 });
