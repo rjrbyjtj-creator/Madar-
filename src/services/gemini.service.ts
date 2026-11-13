@@ -26,8 +26,16 @@ const SYSTEM_INSTRUCTION = `
 // Use the configured model directly. Chaining several fallback models can
 // multiply latency and some fallback IDs may not be enabled for the API key.
 const TTS_MODEL = env.GEMINI_TTS_MODEL;
-function createAI(): GoogleGenAI {
-  return new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+function createAI(timeoutMs = 25_000): GoogleGenAI {
+  return new GoogleGenAI({
+    apiKey: env.GEMINI_API_KEY,
+    httpOptions: {
+      // One attempt only: avoid the SDK's default exponential retries multiplying
+      // latency across several fallback models.
+      retryOptions: { attempts: 1 },
+      timeout: timeoutMs,
+    },
+  });
 }
 
 function safeError(error: unknown): string {
@@ -68,16 +76,13 @@ export async function generateGeminiReply(
     "در همه حالت‌ها دقت علمی، احترام، ایمنی و کیفیت آموزشی را حفظ کن."
   ].filter(Boolean).join("\n");
 
-  const ai = createAI();
-  // Try the configured model first, then stable Flash fallbacks in order.
-  // This keeps chat available when one model is rate-limited or temporarily unavailable.
+  const ai = createAI(25_000);
+  // Keep fallback bounded: primary model plus one lightweight alternative.
   const fallbackModels = [
     env.GEMINI_MODEL,
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
   ].filter((model, index, all) => Boolean(model) && all.indexOf(model) === index);
+  const requestStartedAt = Date.now();
 
   const latestQuestion = messages[messages.length - 1]?.content ?? "";
   const needsWebSearch = /\b(latest|today|current|now|this week|202[5-9])\b|امروز|اکنون|الان|جدیدترین|آخرین|قیمت|نرخ|اخبار|خبر|آپدیت|به‌روز|نسخه جدید|چه زمانی|امسال|این هفته/i.test(latestQuestion);
@@ -85,6 +90,8 @@ export async function generateGeminiReply(
   let lastStatus = 502;
 
   for (const model of fallbackModels) {
+    const modelStartedAt = Date.now();
+    console.info("[AI] Gemini request started:", model);
     try {
       const response = await ai.models.generateContent({
         model,
@@ -102,6 +109,8 @@ export async function generateGeminiReply(
 
       const answer = response.text?.trim() ?? "";
       if (answer) {
+        console.info("[AI] Gemini request succeeded:", model, Date.now() - modelStartedAt, "ms");
+        console.info("[AI] Gemini total generation time:", Date.now() - requestStartedAt, "ms");
         let finalAnswer = answer;
         if (needsWebSearch) {
           const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
@@ -124,24 +133,29 @@ export async function generateGeminiReply(
       }
 
       lastStatus = 502;
-      console.warn("[AI] Gemini returned an empty response; trying next model:", model);
+      console.warn("[AI] Gemini returned an empty response:", model, Date.now() - modelStartedAt, "ms");
     } catch (error) {
       const status = statusOf(error);
       lastStatus = status;
       if (status === 429) sawRateLimit = true;
-      console.warn("[AI] Gemini SDK request failed; trying fallback when eligible:", model, status, safeError(error));
+      console.warn("[AI] Gemini SDK request failed:", model, status, Date.now() - modelStartedAt, "ms", safeError(error));
 
       if (status === 401 || status === 403) {
         throw new AppError(503, "AI_AUTH_FAILED", "کلید Gemini معتبر نیست یا پروژه گوگل مجوز استفاده از این API را ندارد.");
       }
       // Invalid requests are not fixed by switching models. Capacity, transient,
       // and model-availability errors are eligible for the next fallback.
-      if (![404, 429, 500, 502, 503, 504].includes(status)) {
+      if (status === 429) {
+        // A quota/rate limit is commonly project-wide; another model is unlikely to help.
+        break;
+      }
+      if (![404, 500, 502, 503, 504].includes(status)) {
         throw new AppError(502, "AI_PROVIDER_ERROR", "درخواست ارسالی به Gemini معتبر نبود.");
       }
     }
   }
 
+  console.warn("[AI] Gemini generation exhausted:", Date.now() - requestStartedAt, "ms", "last status:", lastStatus);
   if (sawRateLimit) {
     throw new AppError(429, "AI_RATE_LIMITED", "ظرفیت همه مدل‌های در دسترس Gemini موقتاً پر شده است. کمی بعد دوباره تلاش کن.");
   }
