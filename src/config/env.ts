@@ -13,7 +13,7 @@ const envSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(1),
   GEMINI_API_KEY: z.string().default(""),
-  GEMINI_MODEL: z.string().min(1).default("gemini-2.5-flash"),
+  GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
   GEMINI_TTS_MODEL: z.string().min(1).default("gemini-3.1-flash-tts-preview"),
   GEMINI_LIVE_MODEL: z.string().min(1).default("gemini-3.8-live"),
 });
@@ -28,8 +28,15 @@ if (!parsed.success) {
 }
 
 const data = parsed.data;
+
+// Normalize retired Flash model IDs that may still be set in hosting environment variables.
+const configuredGeminiModel = data.GEMINI_MODEL.trim();
+const GEMINI_MODEL = ["gemini-2.5-flash", "gemini-3.6-flash"].includes(configuredGeminiModel)
+  ? "gemini-3.8-flash"
+  : configuredGeminiModel;
 export const env = {
   ...data,
+  GEMINI_MODEL,
   isProduction: data.NODE_ENV === "production",
   clientOrigins: data.CLIENT_URL.split(",")
     .map((origin) => origin.trim().replace(/\/+$/, ""))
