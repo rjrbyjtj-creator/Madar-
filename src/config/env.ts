@@ -15,6 +15,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().default(""),
   GEMINI_MODEL: z.string().min(1).default("gemini-2.5-flash"),
   GEMINI_TTS_MODEL: z.string().min(1).default("gemini-3.1-flash-tts-preview"),
+  GEMINI_LIVE_MODEL: z.string().min(1).default("gemini-3.8-live"),
 });
 
 const parsed = envSchema.safeParse(process.env);
