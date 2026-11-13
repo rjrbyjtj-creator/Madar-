@@ -82,8 +82,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       messages: initialMessages,
     });
   } else {
-    conversation.messages.push({ role: "user", content: userMessage });
-    conversation.messages.push({ role: "model", content: reply });
+    conversation.messages.push({ role: "user", content: userMessage, createdAt: new Date() });
+    conversation.messages.push({ role: "model", content: reply, createdAt: new Date() });
     await conversation.save();
   }
 
