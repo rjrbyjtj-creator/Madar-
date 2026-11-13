@@ -80,7 +80,7 @@ export async function generateGeminiReply(
   ].filter((model, index, all) => Boolean(model) && all.indexOf(model) === index);
 
   const latestQuestion = messages[messages.length - 1]?.content ?? "";
-  const needsWebSearch = /\\b(latest|today|current|now|this week|202[5-9])\\b|امروز|اکنون|الان|جدیدترین|آخرین|قیمت|نرخ|اخبار|خبر|آپدیت|به‌روز|نسخه جدید|چه زمانی|امسال|این هفته/i.test(latestQuestion);
+  const needsWebSearch = /\b(latest|today|current|now|this week|202[5-9])\b|امروز|اکنون|الان|جدیدترین|آخرین|قیمت|نرخ|اخبار|خبر|آپدیت|به‌روز|نسخه جدید|چه زمانی|امسال|این هفته/i.test(latestQuestion);
   let sawRateLimit = false;
   let lastStatus = 502;
 
