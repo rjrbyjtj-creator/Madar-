@@ -60,7 +60,7 @@ export async function generateGeminiReply(
     personaInstruction,
     student.name ? `نام دانش‌آموز: ${student.name}. فقط در صورت طبیعی بودن از نام استفاده کن.` : "",
     "در همه حالت‌ها دقت علمی، احترام، ایمنی و کیفیت آموزشی را حفظ کن."
-  ].filter(Boolean).join("\\n");
+  ].filter(Boolean).join("\n");
 
   const ai = createAI();
   let lastStatus = 502;
