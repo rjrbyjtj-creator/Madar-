@@ -24,7 +24,7 @@ type AuthUser = {
 };
 
 export async function createLiveToken(
-  _req: Request,
+  req: Request,
   res: Response,
 ): Promise<void> {
   if (!env.GEMINI_API_KEY) {
@@ -34,6 +34,17 @@ export async function createLiveToken(
       "سرویس صوتی Gemini هنوز روی سرور تنظیم نشده است.",
     );
   }
+
+  const personaSchema = z.enum(["balanced","friendly","buddy","witty"]);
+  const parsedPersona = personaSchema.safeParse(req.body?.persona ?? "balanced");
+  const persona = parsedPersona.success ? parsedPersona.data : "balanced";
+  const personaInstructions = {
+    balanced: "لحن متعادل، آموزشی، دقیق و محترمانه داشته باش.",
+    friendly: "با لحنی گرم، صمیمی و محاوره‌ای صحبت کن؛ مثل یک گفتگوی طبیعی روزمره، اما دقیق و مؤدب.",
+    buddy: "مثل یک رفیق حمایتگر و باحوصله حرف بزن؛ خودمانی، دلگرم‌کننده و بدون قضاوت.",
+    witty: "کمی شوخ‌طبع و بانمک باش و فقط گاهی شوخی کوتاه و بی‌آزار کن؛ دقت و وضوح را فدای شوخی نکن."
+  } as const;
+  const voiceInstruction = VOICE_INSTRUCTION + " " + personaInstructions[persona];
 
   try {
     const ai = new GoogleGenAI({
@@ -77,7 +88,7 @@ export async function createLiveToken(
 
             outputAudioTranscription: {},
 
-            systemInstruction: VOICE_INSTRUCTION,
+            systemInstruction: voiceInstruction,
           },
         },
       },
