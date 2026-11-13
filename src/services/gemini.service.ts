@@ -69,11 +69,23 @@ export async function generateGeminiReply(
   ].filter(Boolean).join("\n");
 
   const ai = createAI();
-  const model = env.GEMINI_MODEL;
+  // Try the configured model first, then stable Flash fallbacks in order.
+  // This keeps chat available when one model is rate-limited or temporarily unavailable.
+  const fallbackModels = [
+    env.GEMINI_MODEL,
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+  ].filter((model, index, all) => Boolean(model) && all.indexOf(model) === index);
+
+  const latestQuestion = messages[messages.length - 1]?.content ?? "";
+  const needsWebSearch = /\\b(latest|today|current|now|this week|202[5-9])\\b|امروز|اکنون|الان|جدیدترین|آخرین|قیمت|نرخ|اخبار|خبر|آپدیت|به‌روز|نسخه جدید|چه زمانی|امسال|این هفته/i.test(latestQuestion);
+  let sawRateLimit = false;
   let lastStatus = 502;
-  try {
-      const latestQuestion = messages[messages.length - 1]?.content ?? "";
-      const needsWebSearch = /\b(latest|today|current|now|this week|202[5-9])\b|امروز|اکنون|الان|جدیدترین|آخرین|قیمت|نرخ|اخبار|خبر|آپدیت|به‌روز|نسخه جدید|چه زمانی|امسال|این هفته/i.test(latestQuestion);
+
+  for (const model of fallbackModels) {
+    try {
       const response = await ai.models.generateContent({
         model,
         contents: messages.map((message) => ({
@@ -87,42 +99,56 @@ export async function generateGeminiReply(
           ...(needsWebSearch ? { tools: [{ googleSearch: {} }] } : {}),
         },
       });
-      let answer = response.text?.trim() ?? "";
-      if (answer && needsWebSearch) {
-        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
-        const sources = chunks
-          .map((chunk: { web?: { uri?: string; title?: string } }) => chunk.web)
-          .filter((web: { uri?: string } | undefined): web is { uri: string; title?: string } =>
-            Boolean(web?.uri && /^https?:\/\//i.test(web.uri)))
-          .filter((web: { uri: string }, index: number, all: { uri: string }[]) =>
-            all.findIndex((item) => item.uri === web.uri) === index)
-          .slice(0, 6);
-        if (sources.length) {
-          answer += "\n\n### منابع وب\n" + sources.map((source: { uri: string; title?: string }, index: number) =>
-            `${index + 1}. [${(source.title || "منبع وب").replace(/[\[\]]/g, "")}](${source.uri})`).join("\n");
+
+      const answer = response.text?.trim() ?? "";
+      if (answer) {
+        let finalAnswer = answer;
+        if (needsWebSearch) {
+          const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+          const sources = chunks
+            .map((chunk: { web?: { uri?: string; title?: string } }) => chunk.web)
+            .filter((web: { uri?: string } | undefined): web is { uri: string; title?: string } =>
+              Boolean(web?.uri && /^https?:\\/\\//i.test(web.uri)))
+            .filter((web: { uri: string }, index: number, all: { uri: string }[]) =>
+              all.findIndex((item) => item.uri === web.uri) === index)
+            .slice(0, 6);
+          if (sources.length) {
+            finalAnswer += "\\n\\n### منابع وب\\n" + sources.map((source: { uri: string; title?: string }, index: number) =>
+              `${index + 1}. [${(source.title || "منبع وب").replace(/[\\[\\]]/g, "")}](${source.uri})`).join("\\n");
+          }
         }
+        if (model !== env.GEMINI_MODEL) {
+          console.info("[AI] Gemini fallback model succeeded:", model);
+        }
+        return finalAnswer;
       }
-      if (answer) return answer;
+
       lastStatus = 502;
-      console.warn("[AI] Gemini returned an empty response for model:", model);
+      console.warn("[AI] Gemini returned an empty response; trying next model:", model);
     } catch (error) {
-      lastStatus = statusOf(error);
-      console.warn("[AI] Gemini SDK request failed:", model, lastStatus, safeError(error));
-      if (lastStatus === 401 || lastStatus === 403) {
+      const status = statusOf(error);
+      lastStatus = status;
+      if (status === 429) sawRateLimit = true;
+      console.warn("[AI] Gemini SDK request failed; trying fallback when eligible:", model, status, safeError(error));
+
+      if (status === 401 || status === 403) {
         throw new AppError(503, "AI_AUTH_FAILED", "کلید Gemini معتبر نیست یا پروژه گوگل مجوز استفاده از این API را ندارد.");
       }
-      if (![404, 429, 500, 502, 503, 504].includes(lastStatus)) {
+      // Invalid requests are not fixed by switching models. Capacity, transient,
+      // and model-availability errors are eligible for the next fallback.
+      if (![404, 429, 500, 502, 503, 504].includes(status)) {
         throw new AppError(502, "AI_PROVIDER_ERROR", "درخواست ارسالی به Gemini معتبر نبود.");
       }
     }
+  }
 
-  if (lastStatus === 429) {
-    throw new AppError(429, "AI_RATE_LIMITED", "ظرفیت درخواست‌های Gemini موقتاً پر شده است. کمی بعد دوباره تلاش کن.");
+  if (sawRateLimit) {
+    throw new AppError(429, "AI_RATE_LIMITED", "ظرفیت همه مدل‌های در دسترس Gemini موقتاً پر شده است. کمی بعد دوباره تلاش کن.");
   }
   if (lastStatus === 504) {
     throw new AppError(504, "AI_TIMEOUT", "پاسخ هوش مصنوعی بیش از حد طول کشید. دوباره تلاش کن.");
   }
-  throw new AppError(502, "AI_PROVIDER_ERROR", "سرویس Gemini در حال حاضر پاسخ‌گو نیست. جزئیات فنی در لاگ سرور ثبت شده است.");
+  throw new AppError(502, "AI_PROVIDER_ERROR", "همه مدل‌های جایگزین Gemini در حال حاضر پاسخ‌گو نیستند. جزئیات فنی در لاگ سرور ثبت شده است.");
 }
 
 function pcmToWav(pcm: Buffer, sampleRate = 24000, channels = 1): Buffer {
