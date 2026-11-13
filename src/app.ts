@@ -7,16 +7,12 @@ import { apiLimiter } from "./middlewares/rateLimit.js";
 import { requestLogger } from "./middlewares/requestLogger.js";
 import { apiRouter } from "./routes/index.js";
 
-const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
-
-// آدرس‌های ثابت فرانت‌اند (فقط مبدأ، بدون مسیر و بدون / آخر)
+const LOCAL_ORIGIN = /^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?$/;
 const EXTRA_ORIGINS = ["https://rjrbyjtj-creator.github.io"];
 
 function isAllowedOrigin(origin: string): boolean {
   if (EXTRA_ORIGINS.includes(origin)) return true;
   if (env.clientOrigins.includes(origin)) return true;
-
-  // در حالت توسعه، هر پورت localhost و باز کردن مستقیم فایل HTML (Origin: null) مجاز است.
   return !env.isProduction && (origin === "null" || LOCAL_ORIGIN.test(origin));
 }
 
@@ -28,18 +24,13 @@ export function createApp() {
 
   app.use(
     helmet({
-      // این سرور فقط API است و باید از سایت‌های دیگر (گیت‌هاب‌پیج) قابل فراخوانی باشد.
       crossOriginResourcePolicy: { policy: "cross-origin" },
     }),
   );
 
   app.use(
     cors({
-      origin(
-        origin: string | undefined,
-        callback: (error: Error | null, allow?: boolean) => void,
-      ) {
-        // درخواست بدون Origin (curl، Postman، سرور به سرور) مجاز است.
+      origin(origin, callback) {
         const allowed = !origin || isAllowedOrigin(origin);
         if (!allowed) {
           console.warn("CORS blocked origin:", origin, "| allowed:", [
@@ -56,7 +47,8 @@ export function createApp() {
   );
 
   app.use(requestLogger);
-  app.use(express.json({ limit: "10kb" }));
+  // Chat history is bounded in the AI controller; keep the HTTP body limit finite.
+  app.use(express.json({ limit: "40kb" }));
 
   app.get("/health", (_req: Request, res: Response) => {
     res.json({ status: "ok", message: "Backend is running!" });
