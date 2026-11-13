@@ -11,7 +11,7 @@ const messageSchema = z.object({
 });
 
 const chatSchema = z.object({
-  conversationId: z.string().optional(),
+  conversationId: z.string().nullable().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
   messages: z.array(messageSchema).min(1).max(12).optional(),
 }).refine((value) => Boolean(value.message || value.messages?.some((item) => item.role === "user")), {
