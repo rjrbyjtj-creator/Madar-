@@ -32,7 +32,7 @@ export async function createLiveToken(_req: Request, res: Response): Promise<voi
         expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
         newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
         bidiGenerateContentSetup: {
-          model: "models/" + env.GEMINI_LIVE_MODEL,
+          model: "models/" + env.GEMINI_LIVE_MODEL.replace(/^models\\//, ""),
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: {
@@ -41,6 +41,7 @@ export async function createLiveToken(_req: Request, res: Response): Promise<voi
               },
             },
           },
+          historyConfig: { initialHistoryInClientContent: true },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           systemInstruction: {
@@ -54,7 +55,7 @@ export async function createLiveToken(_req: Request, res: Response): Promise<voi
     res.json({
       success: true,
       token: token.name,
-      model: env.GEMINI_LIVE_MODEL,
+      model: env.GEMINI_LIVE_MODEL.replace(/^models\\//, ""),
       expiresInSeconds: 1800,
       sessionStartExpiresInSeconds: 60,
     });
