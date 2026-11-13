@@ -72,7 +72,7 @@ export async function generateGeminiReply(
   for (const model of [...new Set([env.GEMINI_MODEL, ...FALLBACK_MODELS])]) {
     try {
       const latestQuestion = messages[messages.length - 1]?.content ?? "";
-      const needsWebSearch = /\\b(latest|today|current|now|this week|202[5-9])\\b|امروز|اکنون|الان|جدیدترین|آخرین|قیمت|نرخ|اخبار|خبر|آپدیت|به‌روز|نسخه جدید|چه زمانی|امسال|این هفته/i.test(latestQuestion);
+      const needsWebSearch = /\b(latest|today|current|now|this week|202[5-9])\b|امروز|اکنون|الان|جدیدترین|آخرین|قیمت|نرخ|اخبار|خبر|آپدیت|به‌روز|نسخه جدید|چه زمانی|امسال|این هفته/i.test(latestQuestion);
       const response = await ai.models.generateContent({
         model,
         contents: messages.map((message) => ({
@@ -92,13 +92,13 @@ export async function generateGeminiReply(
         const sources = chunks
           .map((chunk: { web?: { uri?: string; title?: string } }) => chunk.web)
           .filter((web: { uri?: string } | undefined): web is { uri: string; title?: string } =>
-            Boolean(web?.uri && /^https?:\\/\\//i.test(web.uri)))
+            Boolean(web?.uri && /^https?:\/\//i.test(web.uri)))
           .filter((web: { uri: string }, index: number, all: { uri: string }[]) =>
             all.findIndex((item) => item.uri === web.uri) === index)
           .slice(0, 6);
         if (sources.length) {
-          answer += "\\n\\n### منابع وب\\n" + sources.map((source: { uri: string; title?: string }, index: number) =>
-            `${index + 1}. [${(source.title || "منبع وب").replace(/[\\[\\]]/g, "")}](${source.uri})`).join("\\n");
+          answer += "\n\n### منابع وب\n" + sources.map((source: { uri: string; title?: string }, index: number) =>
+            `${index + 1}. [${(source.title || "منبع وب").replace(/[\[\]]/g, "")}](${source.uri})`).join("\n");
         }
       }
       if (answer) return answer;
