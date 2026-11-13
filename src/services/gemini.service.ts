@@ -20,7 +20,9 @@ const SYSTEM_INSTRUCTION = `
 
 const FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 const TTS_MODEL = env.GEMINI_TTS_MODEL;
-const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+function createAI(): GoogleGenAI {
+  return new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+}
 
 function safeError(error: unknown): string {
   const message = error instanceof Error ? error.message : "Unknown Gemini error";
@@ -50,6 +52,7 @@ export async function generateGeminiReply(
     ? `${SYSTEM_INSTRUCTION}\nنام دانش‌آموز: ${student.name}. فقط در صورت طبیعی بودن از نام استفاده کن.`
     : SYSTEM_INSTRUCTION;
 
+  const ai = createAI();
   let lastStatus = 502;
   for (const model of [...new Set([env.GEMINI_MODEL, ...FALLBACK_MODELS])]) {
     try {
@@ -114,6 +117,7 @@ export async function generateGeminiSpeech(text: string): Promise<Buffer> {
     throw new AppError(503, "AI_NOT_CONFIGURED", "سرویس هوش مصنوعی هنوز روی سرور تنظیم نشده است.");
   }
   try {
+    const ai = createAI();
     const response = await ai.models.generateContent({
       model: TTS_MODEL,
       contents: [{ parts: [{ text }] }],
