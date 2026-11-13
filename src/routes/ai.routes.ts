@@ -1,9 +1,18 @@
 import { Router } from "express";
-import { chatWithAI } from "../controllers/ai.controller.js";
+import {
+  chatWithAI,
+  deleteConversation,
+  getConversation,
+  listConversations,
+  textToSpeech,
+} from "../controllers/ai.controller.js";
 import { requireAuth } from "../middlewares/auth.js";
-import { aiChatLimiter } from "../middlewares/rateLimit.js";
+import { aiChatLimiter, aiTtsLimiter } from "../middlewares/rateLimit.js";
 
 export const aiRouter = Router();
-
-// فقط کاربران واردشده می‌توانند از دستیار استفاده کنند.
-aiRouter.post("/chat", requireAuth, aiChatLimiter, chatWithAI);
+aiRouter.use(requireAuth);
+aiRouter.get("/conversations", listConversations);
+aiRouter.get("/conversations/:id", getConversation);
+aiRouter.delete("/conversations/:id", deleteConversation);
+aiRouter.post("/chat", aiChatLimiter, chatWithAI);
+aiRouter.post("/tts", aiTtsLimiter, textToSpeech);
