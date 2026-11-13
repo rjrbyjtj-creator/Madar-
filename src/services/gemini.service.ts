@@ -50,6 +50,11 @@ function statusOf(error: unknown): number {
       (error as { code?: unknown }).code;
     const status = Number(value);
     if (Number.isInteger(status) && status >= 400 && status <= 599) return status;
+    const name = (error as { name?: unknown }).name;
+    const message = (error as { message?: unknown }).message;
+    if (name === "TimeoutError" || (typeof message === "string" && /timed? ?out|timeout/i.test(message))) {
+      return 504;
+    }
   }
   return 502;
 }
@@ -189,7 +194,7 @@ export async function generateGeminiSpeech(text: string): Promise<Buffer> {
     throw new AppError(503, "AI_NOT_CONFIGURED", "سرویس هوش مصنوعی هنوز روی سرور تنظیم نشده است.");
   }
   try {
-    const ai = createAI();
+    const ai = createAI(60_000);
     const response = await ai.models.generateContent({
       model: TTS_MODEL,
       contents: [{ parts: [{ text }] }],
