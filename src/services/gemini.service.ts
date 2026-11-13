@@ -42,15 +42,25 @@ function statusOf(error: unknown): number {
 
 export async function generateGeminiReply(
   messages: GeminiMessage[],
-  student: { name?: string; role?: string },
+  student: { name?: string; role?: string; persona?: "balanced" | "friendly" | "buddy" | "witty" },
 ): Promise<string> {
   if (!env.GEMINI_API_KEY) {
     throw new AppError(503, "AI_NOT_CONFIGURED", "سرویس هوش مصنوعی هنوز روی سرور تنظیم نشده است.");
   }
 
-  const systemInstruction = student.name
-    ? `${SYSTEM_INSTRUCTION}\nنام دانش‌آموز: ${student.name}. فقط در صورت طبیعی بودن از نام استفاده کن.`
-    : SYSTEM_INSTRUCTION;
+  const personaInstructions = {
+    balanced: "لحن متعادل، آموزشی، دقیق و محترمانه داشته باش.",
+    friendly: "با لحنی صمیمی، گرم و خودمانی به فارسی محاوره‌ای صحبت کن. از عبارت‌های طبیعی روزمره استفاده کن، اما همچنان دقیق و مؤدب بمان.",
+    buddy: "مثل یک رفیق خوب، حمایتگر و باحوصله با دانش‌آموز حرف بزن. لحن راحت و محاوره‌ای داشته باش، تشویق‌کننده باش و از نصیحت‌کردن یا قضاوت بپرهیز.",
+    witty: "لحن صمیمی و کمی شوخ‌طبع داشته باش. فقط وقتی طبیعی و مناسب است شوخی کوتاه و بی‌آزار اضافه کن؛ هرگز شوخی را به قیمت وضوح، احترام یا دقت علمی تمام نکن."
+  } as const;
+  const personaInstruction = personaInstructions[student.persona ?? "balanced"];
+  const systemInstruction = [
+    SYSTEM_INSTRUCTION,
+    personaInstruction,
+    student.name ? `نام دانش‌آموز: ${student.name}. فقط در صورت طبیعی بودن از نام استفاده کن.` : "",
+    "در همه حالت‌ها دقت علمی، احترام، ایمنی و کیفیت آموزشی را حفظ کن."
+  ].filter(Boolean).join("\\n");
 
   const ai = createAI();
   let lastStatus = 502;
