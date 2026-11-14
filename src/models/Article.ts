@@ -13,6 +13,7 @@ const articleSchema = new Schema({
   featured: { type: Boolean, default: false },
   order: { type: Number, default: 0 },
   publishedAt: { type: Date, default: Date.now },
+  metadataVersion: { type: Number, default: 0, min: 0 },
 }, { timestamps: true, versionKey: false });
 
 articleSchema.index({ published: 1, order: 1, publishedAt: -1 });
