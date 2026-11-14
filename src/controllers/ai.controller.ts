@@ -28,7 +28,7 @@ function isPlannerReviewRequest(message: string): boolean {
 }
 
 function isPlannerCreateRequest(message: string): boolean {
-  return /(برنامه|پلن).{0,65}(ثبت|اضافه|بچین|تنظیم|بساز|بنویس|برام بنویس|قرار بده|برنامه.?ریزی کن)|(ثبت|اضافه|بچین|تنظیم|بساز|بنویس).{0,35}(برنامه|پلن)/i.test(message);
+  return /(برنامه|پلن).{0,65}(ثبت|اضافه|بچین|تنظیم|بساز|بنویس|می.?خوام|می.?خواهم|برنامه بده|پیشنهاد بده|قرار بده|برنامه.?ریزی کن)|(ثبت|اضافه|بچین|تنظیم|بساز|بنویس).{0,35}(برنامه|پلن)/i.test(message);
 }
 
 const planDraftSchema = z.object({
@@ -130,9 +130,16 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     content: item.content,
   }));
 
+  const previousAssistantMessage = [...history].reverse().find((item) => item.role === "model")?.content ?? "";
+  const isPlanDateFollowup =
+    user.role === "student" &&
+    /(تاریخ|کدام روز|چه روزی|روز موردنظر)/i.test(previousAssistantMessage) &&
+    latestUserMessage.length <= 80 &&
+    /(امروز|فردا|پس.?فردا|شنبه|یکشنبه|دوشنبه|سه.?شنبه|چهارشنبه|پنجشنبه|جمعه|\\d{1,2}[\\/-]\\d{1,2}|\\d{4}-\\d{2}-\\d{2})/i.test(latestUserMessage);
   const plannerRelevant = user.role === "student" &&
-    (isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage));
-  const createPlanMode = user.role === "student" && isPlannerCreateRequest(latestUserMessage);
+    (isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
+  const createPlanMode = user.role === "student" &&
+    (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const plannerContext = plannerRelevant
     ? [
         await buildPlannerContext(user._id),
