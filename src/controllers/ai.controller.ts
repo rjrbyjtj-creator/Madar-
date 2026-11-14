@@ -135,7 +135,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     user.role === "student" &&
     /(تاریخ|کدام روز|چه روزی|روز موردنظر)/i.test(previousAssistantMessage) &&
     latestUserMessage.length <= 80 &&
-    /(امروز|فردا|پس.?فردا|شنبه|یکشنبه|دوشنبه|سه.?شنبه|چهارشنبه|پنجشنبه|جمعه|\\d{1,2}[\\/-]\\d{1,2}|\\d{4}-\\d{2}-\\d{2})/i.test(latestUserMessage);
+    /(امروز|فردا|پس.?فردا|شنبه|یکشنبه|دوشنبه|سه.?شنبه|چهارشنبه|پنجشنبه|جمعه|\d{1,2}[\/-]\d{1,2}|\d{4}-\d{2}-\d{2})/i.test(latestUserMessage);
   const plannerRelevant = user.role === "student" &&
     (isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
