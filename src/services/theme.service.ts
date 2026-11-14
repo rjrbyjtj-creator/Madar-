@@ -175,9 +175,9 @@ export async function updateTheme(
   id: string,
   input: Partial<{
     name: string;
-    colors: ThemeColors;
-    font: string;
-    mode: "light" | "dark";
+    colors: Partial<ThemeColors>;
+    font: ThemeDocument["font"];
+    mode: ThemeDocument["mode"];
   }>,
 ): Promise<PublicTheme> {
   const doc = await Theme.findById(id);
