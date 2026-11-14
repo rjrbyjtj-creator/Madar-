@@ -1,6 +1,29 @@
-import mongoose, { type InferSchemaType } from "mongoose";
+import mongoose, { type Document, type Model } from "mongoose";
 
 const { Schema, model } = mongoose;
+
+export type ThemeColors = {
+  navy: string;
+  gold: string;
+  bg: string;
+  green: string;
+  text?: string;
+  muted?: string;
+  surface?: string;
+  line?: string;
+};
+
+export interface ThemeDocument extends Document {
+  name: string;
+  slug: string;
+  colors: ThemeColors;
+  font: "vazir" | "tahoma" | "system";
+  mode: "light" | "dark";
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 const colorsSchema = new Schema(
   {
@@ -63,8 +86,4 @@ const themeSchema = new Schema(
   },
 );
 
-export type ThemeDocument = InferSchemaType<typeof themeSchema> & {
-  _id: mongoose.Types.ObjectId;
-};
-
-export const Theme = model<ThemeDocument>("Theme", themeSchema);
+export const Theme: Model<ThemeDocument> = model<ThemeDocument>("Theme", themeSchema);
