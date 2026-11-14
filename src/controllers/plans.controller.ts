@@ -3,19 +3,17 @@ import { z } from "zod";
 import type { Request, Response } from "express";
 import { Plan } from "../models/Plan.js";
 import { AppError } from "../utils/errors.js";
-
-const datePattern = /^\\d{4}-\\d{2}-\\d{2}$/;
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const taskSchema = z.object({
   id: z.string().trim().min(1).max(64),
   title: z.string().trim().min(1).max(120),
   type: z.enum(["study", "video", "test", "note"]),
-  start: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
-  end: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
+  start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   done: z.boolean().default(false),
 }).refine((task) => task.end > task.start, { message: "Invalid task time range." });
 const savePlanSchema = z.object({ tasks: z.array(taskSchema).max(100), note: z.string().max(4000).default("") });
 type AuthUser = { _id: mongoose.Types.ObjectId; role?: string };
-
 function requireStudent(res: Response): AuthUser {
   const user = res.locals.user as AuthUser;
   if (!user || user.role !== "student") throw new AppError(403, "STUDENT_ONLY", "این بخش فقط برای حساب دانش‌آموزی فعال است.");
@@ -52,9 +50,8 @@ export async function saveStudentPlan(req: Request, res: Response): Promise<void
     res.json({ ok: true, plan: { date, tasks: [], note: "" } });
     return;
   }
-  const plan = await Plan.findOneAndUpdate(
-    { user: user._id, date }, { $set: { tasks, note } },
-    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
-  ).select("date tasks note updatedAt").lean();
+  const plan = await Plan.findOneAndUpdate({ user: user._id, date }, { $set: { tasks, note } },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true })
+    .select("date tasks note updatedAt").lean();
   res.json({ ok: true, plan });
 }
