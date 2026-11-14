@@ -40,7 +40,13 @@ export function createApp() {
   app.get("/health", (_req: Request, res: Response) => {
     res.json({ status: "ok", message: "Backend is running!" });
   });
-  app.use("/api", apiLimiter, apiRouter);
+  app.use("/api", (_req, res, next) => {
+    // Prevent conditional caching of authenticated API responses.
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    next();
+  }, apiLimiter, apiRouter);
   app.use(notFoundHandler);
   app.use(errorHandler);
   return app;

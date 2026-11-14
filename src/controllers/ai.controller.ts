@@ -50,17 +50,21 @@ function isValidPlanDate(value: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-async function buildPlannerContext(userId: mongoose.Types.ObjectId): Promise<string> {
-  const fromDate = new Date();
-  fromDate.setUTCDate(fromDate.getUTCDate() - 14);
-  const toDate = new Date();
-  toDate.setUTCDate(toDate.getUTCDate() + 30);
+async function buildPlannerContext(userId: mongoose.Types.ObjectId, localDate?: string): Promise<string> {
+  // Anchor the lookup to the student local calendar date, not the server UTC day.
+  const anchor = isValidPlanDate(localDate ?? "")
+    ? new Date(String(localDate) + "T12:00:00.000Z")
+    : new Date();
+  const fromDate = new Date(anchor);
+  fromDate.setUTCDate(fromDate.getUTCDate() - 90);
+  const toDate = new Date(anchor);
+  toDate.setUTCDate(toDate.getUTCDate() + 90);
   const from = fromDate.toISOString().slice(0, 10);
   const to = toDate.toISOString().slice(0, 10);
   const plans = await Plan.find({ user: userId, date: { $gte: from, $lte: to } })
     .select("date tasks note")
     .sort({ date: 1 })
-    .limit(45)
+    .limit(181)
     .lean();
   console.info("[PLANS] ai-context", { count: plans.length, from, to });
 
@@ -145,7 +149,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const plannerContext = plannerRelevant
     ? [
-        await buildPlannerContext(user._id),
+        await buildPlannerContext(user._id, parsed.data.localDate),
         createPlanMode
           ? [
               "تاریخ امروز بر اساس تقویم محلی دستگاه دانش‌آموز: " + (parsed.data.localDate ?? new Date().toISOString().slice(0, 10)) + ". عبارت‌هایی مانند فردا و پس‌فردا را نسبت به همین تاریخ محاسبه کن.",
