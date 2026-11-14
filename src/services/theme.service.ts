@@ -45,67 +45,19 @@ const DEFAULT_THEMES: Array<{
     name: "مدار (پیش‌فرض)",
     slug: "madar",
     colors: {
-      navy: "#1c2b4b",
-      gold: "#d4b16a",
-      bg: "#f5f7fb",
-      green: "#22c55e",
-      text: "#1e293b",
-      muted: "#64748b",
-      surface: "#ffffff",
-      line: "#e3e8f0",
+      navy: "#1c2b4b", gold: "#d4b16a", bg: "#f5f7fb", green: "#22c55e",
+      text: "#1e293b", muted: "#64748b", surface: "#ffffff", line: "#e3e8f0",
     },
-    font: "vazir",
-    mode: "light",
-    isActive: true,
-    isDefault: true,
+    font: "vazir", mode: "light", isActive: true, isDefault: true,
   },
   {
-    name: "اقیانوس",
-    slug: "ocean",
+    name: "خاکستری",
+    slug: "gray",
     colors: {
-      navy: "#0f4c81",
-      gold: "#38bdf8",
-      bg: "#f0f9ff",
-      green: "#10b981",
-      text: "#0c4a6e",
-      muted: "#64748b",
-      surface: "#ffffff",
-      line: "#e0f2fe",
+      navy: "#343a40", gold: "#858b93", bg: "#f3f4f6", green: "#64748b",
+      text: "#24292f", muted: "#747b84", surface: "#ffffff", line: "#dfe3e8",
     },
-    font: "vazir",
-    mode: "light",
-  },
-  {
-    name: "جنگل",
-    slug: "forest",
-    colors: {
-      navy: "#14532d",
-      gold: "#84cc16",
-      bg: "#f7fee7",
-      green: "#f59e0b",
-      text: "#14532d",
-      muted: "#4d7c0f",
-      surface: "#ffffff",
-      line: "#ecfccb",
-    },
-    font: "vazir",
-    mode: "light",
-  },
-  {
-    name: "بنفش سلطنتی",
-    slug: "royal",
-    colors: {
-      navy: "#4c1d95",
-      gold: "#c4b5fd",
-      bg: "#f5f3ff",
-      green: "#ec4899",
-      text: "#4c1d95",
-      muted: "#6b7280",
-      surface: "#ffffff",
-      line: "#ede9fe",
-    },
-    font: "vazir",
-    mode: "light",
+    font: "vazir", mode: "light", isDefault: true,
   },
 ];
 
@@ -131,19 +83,23 @@ export function fontCss(font: string): string {
 
 export async function seedDefaultThemes(): Promise<void> {
   try {
-    const count = await Theme.countDocuments();
-    if (count > 0) {
-      logger.info({ count }, "Themes already exist — skip seed");
-      return;
+    for (const theme of DEFAULT_THEMES) {
+      await Theme.updateOne(
+        { slug: theme.slug },
+        { $setOnInsert: { ...theme, isActive: false, isDefault: true } },
+        { upsert: true },
+      );
     }
-    await Theme.insertMany(
-      DEFAULT_THEMES.map((t) => ({
-        ...t,
-        isActive: Boolean(t.isActive),
-        isDefault: Boolean(t.isDefault),
-      })),
-    );
-    logger.info({ n: DEFAULT_THEMES.length }, "Default themes seeded");
+
+    // Migrate old built-in presets to the single branded default without
+    // deleting existing documents or user-created themes.
+    const active = await Theme.findOne({ isActive: true }).lean();
+    if (!active || ["ocean", "forest", "royal"].includes(active.slug)) {
+      await Theme.updateMany({ isActive: true }, { $set: { isActive: false } });
+      await Theme.updateOne({ slug: "madar" }, { $set: { isActive: true } });
+    }
+
+    logger.info({ n: DEFAULT_THEMES.length }, "Required default themes ensured");
   } catch (error) {
     logger.error(
       { err: error instanceof Error ? error.message : error },
@@ -179,7 +135,7 @@ export async function getActiveTheme(): Promise<PublicTheme> {
 }
 
 export async function listThemes(): Promise<PublicTheme[]> {
-  const rows = await Theme.find().sort({ isDefault: -1, createdAt: 1 }).lean();
+  const rows = await Theme.find({ slug: { $nin: ["ocean", "forest", "royal"] } }).sort({ isDefault: -1, createdAt: 1 }).lean();
   return rows.map((r) => toPublicTheme(r as unknown as ThemeDocument));
 }
 
