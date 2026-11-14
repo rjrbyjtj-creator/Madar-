@@ -5,6 +5,7 @@ import { connectDB } from "./config/database.js";
 import { env } from "./config/env.js";
 import { seedDefaultAdmin } from "./services/seed.service.js";
 import { seedDefaultThemes } from "./services/theme.service.js";
+import { seedDefaultArticles } from "./services/articles.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
 import { logger } from "./utils/logger.js";
 
@@ -31,6 +32,7 @@ async function startServer(): Promise<void> {
     await connectDB();
     await seedDefaultAdmin();
     await seedDefaultThemes();
+    await seedDefaultArticles();
     startTelegramBot();
 
     const server = createApp().listen(env.PORT, () => {
