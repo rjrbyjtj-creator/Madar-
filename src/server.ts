@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { createApp } from "./app.js";
 import { connectDB } from "./config/database.js";
 import { env } from "./config/env.js";
+import { seedDefaultAdmin } from "./services/seed.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
 import { logger } from "./utils/logger.js";
 
@@ -28,6 +29,7 @@ async function shutdown(signal: string, server: Server): Promise<void> {
 async function startServer(): Promise<void> {
   try {
     await connectDB();
+    await seedDefaultAdmin();
     startTelegramBot();
 
     const server = createApp().listen(env.PORT, () => {

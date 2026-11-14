@@ -18,7 +18,7 @@ export async function requireAuth(
   if (scheme?.toLowerCase() !== "bearer" || !token) throw UNAUTHORIZED();
 
   const payload = verifyAccessToken(token);
-if (!payload || !mongoose.isValidObjectId(payload.userId)) throw UNAUTHORIZED();
+  if (!payload || !mongoose.isValidObjectId(payload.userId)) throw UNAUTHORIZED();
 
   const user = await User.findById(payload.userId);
   if (!user || !user.isActive) throw UNAUTHORIZED();
@@ -32,5 +32,18 @@ if (!payload || !mongoose.isValidObjectId(payload.userId)) throw UNAUTHORIZED();
   }
 
   res.locals.user = user;
+  next();
+}
+
+/** بعد از requireAuth — فقط نقش admin اجازه دارد. */
+export function requireAdmin(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const user = res.locals.user as { role?: string } | undefined;
+  if (!user || user.role !== "admin") {
+    throw new AppError(403, "FORBIDDEN", "فقط مدیر سامانه به این بخش دسترسی دارد.");
+  }
   next();
 }
