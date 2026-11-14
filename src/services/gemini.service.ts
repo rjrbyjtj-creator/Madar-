@@ -113,7 +113,7 @@ function finishReasonMessage(finishReason?: string): string | null {
 async function callModel(
   model: string,
   timeoutMs: number,
-  contents: Array<{ role: string; parts: any[] }>,
+  contents: any[],
   systemInstruction: string,
   temperature: number,
   studentId?: mongoose.Types.ObjectId,
@@ -133,9 +133,7 @@ async function callModel(
   for (let round = 0; round < 3 && studentId; round += 1) {
     const candidate = response.candidates?.[0];
     const modelContent = candidate?.content;
-    const calls = response.functionCalls ?? modelContent?.parts
-      ?.filter((part: { functionCall?: unknown }) => part.functionCall)
-      .map((part: { functionCall: unknown }) => part.functionCall);
+    const calls = response.functionCalls ?? [];
     if (!calls?.length || !modelContent) break;
 
     const functionResponses: any[] = [];

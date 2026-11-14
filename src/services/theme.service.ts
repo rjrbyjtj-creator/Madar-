@@ -143,7 +143,7 @@ export async function createTheme(input: {
   name: string;
   slug?: string;
   colors: ThemeColors;
-  font?: string;
+  font?: ThemeDocument["font"];
   mode?: "light" | "dark";
 }): Promise<PublicTheme> {
   const baseSlug = (input.slug || input.name)
@@ -175,9 +175,9 @@ export async function updateTheme(
   id: string,
   input: Partial<{
     name: string;
-    colors: ThemeColors;
-    font: string;
-    mode: "light" | "dark";
+    colors: Partial<ThemeColors>;
+    font: ThemeDocument["font"];
+    mode: ThemeDocument["mode"];
   }>,
 ): Promise<PublicTheme> {
   const doc = await Theme.findById(id);

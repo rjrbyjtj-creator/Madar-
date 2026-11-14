@@ -6,13 +6,13 @@ const taskSchema = z.object({
   id: z.string().trim().min(1).max(64),
   title: z.string().trim().min(1).max(120),
   type: z.enum(["study", "video", "test", "note"]),
-  start: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
-  end: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
+  start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   done: z.boolean().default(false),
 }).refine((task) => task.end > task.start, { message: "Invalid task time range." });
 
 const proposalSchema = z.object({
-  date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   tasks: z.array(taskSchema).max(100),
   note: z.string().max(4000).default(""),
 });
@@ -62,7 +62,7 @@ export const plannerToolDeclarations = [
 ] as const;
 
 function validDate(value: string): boolean {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(value + "T00:00:00.000Z");
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
@@ -74,8 +74,8 @@ export async function executePlannerTool(
 ): Promise<{ result: Record<string, unknown>; proposal?: PlannerProposal }> {
   if (name === "get_my_plans") {
     const parsed = z.object({
-      from: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
-      to: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     }).safeParse(args);
     if (!parsed.success || !validDate(parsed.data.from) || !validDate(parsed.data.to) || parsed.data.from > parsed.data.to) {
       return { result: { ok: false, error: "بازه تاریخ معتبر نیست. از فرمت YYYY-MM-DD استفاده کن." } };
