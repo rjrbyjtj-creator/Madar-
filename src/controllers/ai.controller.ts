@@ -157,17 +157,20 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ].filter(Boolean).join("\n")
     : undefined;
 
-  let reply = await generateGeminiReply(
+  const aiResult = await generateGeminiReply(
     [...history, { role: "user", content: latestUserMessage }],
     {
       name: user.name,
       role: user.role,
       persona: parsed.data.persona ?? "balanced",
       plannerContext,
+      userId: user.role === "student" ? user._id : undefined,
+      localDate: parsed.data.localDate,
     },
   );
 
-  let planProposal: z.infer<typeof planDraftSchema> | undefined;
+  let reply = aiResult.text;
+  let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
   const draftMatch = reply.match(/<MADAR_PLAN_DRAFT>([\s\S]*?)<\/MADAR_PLAN_DRAFT>/);
   if (draftMatch) {
     try {
