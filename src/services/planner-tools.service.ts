@@ -86,6 +86,7 @@ export async function executePlannerTool(
       user: userId,
       date: { $gte: parsed.data.from, $lte: parsed.data.to },
     }).select("date tasks note").sort({ date: 1 }).limit(91).lean();
+    console.info("[PLANS] ai-tool-read", { from: parsed.data.from, to: parsed.data.to, count: plans.length });
     return {
       result: {
         ok: true,
