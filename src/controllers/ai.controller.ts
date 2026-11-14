@@ -62,6 +62,7 @@ async function buildPlannerContext(userId: mongoose.Types.ObjectId): Promise<str
     .sort({ date: 1 })
     .limit(45)
     .lean();
+  console.info("[PLANS] ai-context", { count: plans.length, from, to });
 
   if (!plans.length) {
     return "هنوز برنامه ذخیره‌شده‌ای برای این دانش‌آموز در بازه اخیر وجود ندارد. در صورت درخواست ساخت برنامه، می‌توانی بر اساس اطلاعاتی که کاربر در همین گفتگو داده یک پیش‌نویس پیشنهاد کنی.";
@@ -136,8 +137,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     /(تاریخ|کدام روز|چه روزی|روز موردنظر)/i.test(previousAssistantMessage) &&
     latestUserMessage.length <= 80 &&
     /(امروز|فردا|پس.?فردا|شنبه|یکشنبه|دوشنبه|سه.?شنبه|چهارشنبه|پنجشنبه|جمعه|\d{1,2}[\/-]\d{1,2}|\d{4}-\d{2}-\d{2})/i.test(latestUserMessage);
+  // Any student message mentioning a plan receives server-loaded plan context;
+  // do not depend on a narrow phrase matcher before reading the database.
   const plannerRelevant = user.role === "student" &&
-    (isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
+    (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const plannerContext = plannerRelevant
