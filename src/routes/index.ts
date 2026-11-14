@@ -9,5 +9,5 @@ export const apiRouter = Router();
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/users", userRouter);
 apiRouter.use("/ai", aiRouter);
-/** تم‌های ظاهری سایت — GET /api/themes/active عمومی است */
+/** Theme API — mounted under /api/themes; /active is public, management routes require admin. */
 apiRouter.use("/themes", themeRouter);
