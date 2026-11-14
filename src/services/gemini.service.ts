@@ -179,6 +179,7 @@ export async function generateGeminiReply(
     persona?: "balanced" | "friendly" | "buddy" | "witty";
     plannerContext?: string;
     userId?: mongoose.Types.ObjectId;
+    localDate?: string;
   },
 ): Promise<{ text: string; planProposal?: PlannerProposal }> {
   if (!env.GEMINI_API_KEY) {
@@ -217,6 +218,11 @@ export async function generateGeminiReply(
 
   const systemInstruction = [
     SYSTEM_INSTRUCTION,
+    student.userId ? [
+      "ابزارهای واقعی برنامه‌ریزی در اختیار توست؛ از get_my_plans برای خواندن برنامه‌های ذخیره‌شده همین دانش‌آموز استفاده کن و برای بررسی برنامه، هرگز از دانش‌آموز نخواه برنامه را دوباره کپی کند مگر ابزار با خطا روبه‌رو شود.",
+      "برای ساخت برنامه از propose_plan استفاده کن؛ این ابزار فقط پیش‌نویس تولید می‌کند. ثبت نهایی فقط بعد از تأیید صریح دانش‌آموز در رابط چت انجام می‌شود.",
+      "تاریخ محلی امروز دانش‌آموز: " + (student.localDate ?? new Date().toISOString().slice(0, 10)) + ". بازه ابزار را با این تاریخ محاسبه کن.",
+    ].join("\\n") : "",
     plannerInstruction,
     personaInstructions[student.persona ?? "balanced"],
     student.name ? `نام دانش‌آموز: ${student.name}. فقط اگر طبیعی است از نام استفاده کن.` : "",
