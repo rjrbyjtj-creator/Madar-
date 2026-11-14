@@ -36,6 +36,7 @@ export async function listStudentPlans(req: Request, res: Response): Promise<voi
     filter.date = { $gte: from, $lte: to };
   }
   const plans = await Plan.find(filter).select("date tasks note updatedAt").sort({ date: 1 }).limit(370).lean();
+  console.info("[PLANS] list", { count: plans.length, from: from || null, to: to || null });
   res.json({ ok: true, plans });
 }
 export async function saveStudentPlan(req: Request, res: Response): Promise<void> {
@@ -46,12 +47,14 @@ export async function saveStudentPlan(req: Request, res: Response): Promise<void
   if (!parsed.success) throw new AppError(400, "INVALID_PLAN", "اطلاعات برنامه معتبر نیست؛ ساعت‌ها و عنوان فعالیت را بررسی کن.");
   const { tasks, note } = parsed.data;
   if (!tasks.length && !note.trim()) {
-    await Plan.findOneAndDelete({ user: user._id, date });
+    const deleted = await Plan.findOneAndDelete({ user: user._id, date });
+    console.info("[PLANS] cleared", { date, existed: Boolean(deleted) });
     res.json({ ok: true, plan: { date, tasks: [], note: "" } });
     return;
   }
   const plan = await Plan.findOneAndUpdate({ user: user._id, date }, { $set: { tasks, note } },
     { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true })
     .select("date tasks note updatedAt").lean();
+  console.info("[PLANS] saved", { date, taskCount: plan?.tasks?.length ?? 0, persisted: Boolean(plan) });
   res.json({ ok: true, plan });
 }
