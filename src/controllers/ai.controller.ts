@@ -13,7 +13,7 @@ const messageSchema = z.object({
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
-  persona: z.enum(["balanced","friendly","buddy","witty"]).optional(),
+  persona: z.enum(["balanced", "friendly", "buddy", "witty"]).optional(),
   messages: z.array(messageSchema).min(1).max(12).optional(),
 }).refine((value) => Boolean(value.message || value.messages?.some((item) => item.role === "user")), {
   message: "A user message is required.",
@@ -24,11 +24,16 @@ type AuthUser = { _id: mongoose.Types.ObjectId; name?: string; role?: string };
 export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const parsed = chatSchema.safeParse(req.body);
   if (!parsed.success) {
-    throw new AppError(400, "INVALID_CHAT_REQUEST", "پیام ارسالی معتبر نیست. متن هر پیام باید حداکثر ۲۵۰۰ نویسه باشد.");
+    throw new AppError(
+      400,
+      "INVALID_CHAT_REQUEST",
+      "پیام ارسالی معتبر نیست. متن هر پیام باید حداکثر ۲۵۰۰ نویسه باشد.",
+    );
   }
 
   const user = res.locals.user as AuthUser;
-  const latestUserMessage = parsed.data.message ??
+  const latestUserMessage =
+    parsed.data.message ??
     [...(parsed.data.messages ?? [])].reverse().find((item) => item.role === "user")?.content;
   if (!latestUserMessage) {
     throw new AppError(400, "INVALID_CHAT_TURN", "پیام دانش‌آموز پیدا نشد.");
@@ -39,7 +44,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     if (!mongoose.isValidObjectId(parsed.data.conversationId)) {
       throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
     }
-    conversation = await Conversation.findOne({ _id: parsed.data.conversationId, user: user._id });
+    conversation = await Conversation.findOne({
+      _id: parsed.data.conversationId,
+      user: user._id,
+    }).select("_id title messages");
     if (!conversation) {
       throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
     }
@@ -51,36 +59,54 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     });
   }
 
-  // Keep a compact, correctly ordered context window. Gemini conversations
-  // must begin with a user turn; slicing an odd number of stored messages
-  // could otherwise make the history start with a model turn.
-  const recentMessages = conversation.messages.slice(-10);
+  // Compact history window — Gemini must start with a user turn.
+  const recentMessages = conversation.messages.slice(-8);
   const firstUserIndex = recentMessages.findIndex((item) => item.role === "user");
-  const history: GeminiMessage[] = (firstUserIndex >= 0 ? recentMessages.slice(firstUserIndex) : [])
-    .map((item) => ({ role: item.role as "user" | "model", content: item.content }));
+  const history: GeminiMessage[] = (
+    firstUserIndex >= 0 ? recentMessages.slice(firstUserIndex) : []
+  ).map((item) => ({
+    role: item.role as "user" | "model",
+    content: item.content,
+  }));
 
   const reply = await generateGeminiReply(
     [...history, { role: "user", content: latestUserMessage }],
-    { name: user.name, role: user.role, persona: parsed.data.persona ?? "balanced" },
+    {
+      name: user.name,
+      role: user.role,
+      persona: parsed.data.persona ?? "balanced",
+    },
   );
 
   conversation.messages.push(
     { role: "user", content: latestUserMessage, createdAt: new Date() },
     { role: "model", content: reply, createdAt: new Date() },
   );
-  if (conversation.messages.length <= 2) conversation.title = latestUserMessage.slice(0, 72);
-  // Bound document growth so very long chats do not make every future turn slow.
+  if (conversation.messages.length <= 2) {
+    conversation.title = latestUserMessage.slice(0, 72);
+  }
   if (conversation.messages.length > 100) {
     conversation.messages.splice(0, conversation.messages.length - 100);
   }
-  await conversation.save();
 
+  const conversationId = String(conversation._id);
+  const title = conversation.title;
+
+  // Send the answer immediately — do not make the user wait for MongoDB write.
   res.json({
     ok: true,
     reply,
     model: "gemini",
-    conversationId: String(conversation._id),
-    title: conversation.title,
+    conversationId,
+    title,
+  });
+
+  // Persist in the background. A failed save must not break the chat UX.
+  void conversation.save().catch((err: unknown) => {
+    console.error(
+      "[AI] conversation save failed:",
+      err instanceof Error ? err.message : err,
+    );
   });
 }
 
@@ -134,11 +160,19 @@ export async function renameConversation(req: Request, res: Response): Promise<v
   const user = res.locals.user as AuthUser;
   const id = String(req.params.id ?? "");
   const title = z.string().trim().min(1).max(80).safeParse(req.body?.title);
-  if (!mongoose.isValidObjectId(id)) throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
-  if (!title.success) throw new AppError(400, "INVALID_TITLE", "نام گفتگو باید بین ۱ تا ۸۰ نویسه باشد.");
+  if (!mongoose.isValidObjectId(id)) {
+    throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
+  }
+  if (!title.success) {
+    throw new AppError(400, "INVALID_TITLE", "نام گفتگو باید بین ۱ تا ۸۰ نویسه باشد.");
+  }
   const conversation = await Conversation.findOneAndUpdate(
-    { _id: id, user: user._id }, { $set: { title: title.data } }, { new: true },
-  ).select("_id title isPinned").lean();
+    { _id: id, user: user._id },
+    { $set: { title: title.data } },
+    { new: true },
+  )
+    .select("_id title isPinned")
+    .lean();
   if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
   res.json({ ok: true, conversation });
 }
@@ -146,7 +180,9 @@ export async function renameConversation(req: Request, res: Response): Promise<v
 export async function toggleConversationPin(req: Request, res: Response): Promise<void> {
   const user = res.locals.user as AuthUser;
   const id = String(req.params.id ?? "");
-  if (!mongoose.isValidObjectId(id)) throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
+  if (!mongoose.isValidObjectId(id)) {
+    throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
+  }
   const conversation = await Conversation.findOne({ _id: id, user: user._id });
   if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
   conversation.isPinned = !conversation.isPinned;
