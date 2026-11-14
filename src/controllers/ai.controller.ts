@@ -227,7 +227,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
   const aiResult = exactTodayRead
-    ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate) }
+    ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined }
     : await generateGeminiReply(
         [...history, { role: "user", content: latestUserMessage }],
         {
