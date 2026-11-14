@@ -320,15 +320,10 @@ export async function generateGeminiReply(
           "کلید Gemini معتبر نیست یا پروژه گوگل مجوز این API را ندارد.",
         );
       }
-      if (status === 429) {
-        throw new AppError(
-          429,
-          "AI_RATE_LIMITED",
-          "ظرفیت Gemini موقتاً پر است. چند ثانیه بعد دوباره تلاش کن.",
-        );
-      }
-      // timeout / 5xx / 404 → fall through to next attempt
-      if (![404, 500, 502, 503, 504].includes(status)) {
+      // A quota/rate-limit response from one model must not prevent the configured fallback.
+      // The next attempt uses the single lightweight fallback model.
+      // timeout / 5xx / 404 / 429 → fall through to next attempt
+      if (![404, 429, 500, 502, 503, 504].includes(status)) {
         throw new AppError(502, "AI_PROVIDER_ERROR", "درخواست به Gemini معتبر نبود.");
       }
     }
@@ -348,6 +343,14 @@ export async function generateGeminiReply(
       504,
       "AI_TIMEOUT",
       "پاسخ بیش از حد طول کشید. دوباره تلاش کن.",
+    );
+  }
+
+  if (lastStatus === 429) {
+    throw new AppError(
+      429,
+      "AI_RATE_LIMITED",
+      "سهمیه یا ظرفیت مدل‌های فعال Gemini تمام شده است. پس از بازنشانی سهمیه دوباره تلاش کن.",
     );
   }
 
