@@ -15,6 +15,7 @@ const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
   persona: z.enum(["balanced", "friendly", "buddy", "witty"]).optional(),
+  localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   messages: z.array(messageSchema).min(1).max(12).optional(),
 }).refine((value) => Boolean(value.message || value.messages?.some((item) => item.role === "user")), {
   message: "A user message is required.",
@@ -31,20 +32,20 @@ function isPlannerCreateRequest(message: string): boolean {
 }
 
 const planDraftSchema = z.object({
-  date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   tasks: z.array(z.object({
     id: z.string().trim().min(1).max(64),
     title: z.string().trim().min(1).max(120),
     type: z.enum(["study", "video", "test", "note"]),
-    start: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
-    end: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
+    start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     done: z.boolean().default(false),
   }).refine((task) => task.end > task.start, { message: "Invalid task time range." })).max(100),
   note: z.string().max(4000).default(""),
 });
 
 function isValidPlanDate(value: string): boolean {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(value + "T00:00:00.000Z");
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
