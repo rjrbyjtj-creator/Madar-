@@ -31,6 +31,62 @@ function isPlannerCreateRequest(message: string): boolean {
   return /(برنامه|پلن).{0,65}(ثبت|اضافه|بچین|تنظیم|بساز|بنویس|می.?خوام|می.?خواهم|برنامه بده|پیشنهاد بده|قرار بده|برنامه.?ریزی کن)|(ثبت|اضافه|بچین|تنظیم|بساز|بنویس).{0,35}(برنامه|پلن)/i.test(message);
 }
 
+function isExactTodayPlanReadRequest(message: string): boolean {
+  return /(?:برنامه|پلن)/i.test(message) &&
+    /امروز/i.test(message) &&
+    /(?:بخون|بخوان|نشون بده|نشان بده|بگو|لیست|فهرست|فعالیت|ساعت|دقیق)/i.test(message) &&
+    !isPlannerCreateRequest(message);
+}
+
+async function buildExactTodayPlanReply(
+  userId: mongoose.Types.ObjectId,
+  localDate?: string,
+): Promise<string> {
+  const date = isValidPlanDate(localDate ?? "")
+    ? String(localDate)
+    : new Date().toISOString().slice(0, 10);
+  const day = await Plan.findOne({ user: userId, date })
+    .select("date tasks note")
+    .lean();
+  const tasks = day?.tasks ?? [];
+  console.info("[PLANS] exact-read", {
+    date,
+    found: Boolean(day),
+    taskCount: tasks.length,
+  });
+
+  const dateLabel = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(date + "T12:00:00.000Z"));
+
+  if (!tasks.length) {
+    const note = day?.note?.trim() ? "\\nیادداشت ثبت‌شده: " + day.note.trim() : "";
+    return "در برنامه‌ریزی من برای " + dateLabel + " فعالیتی ثبت نشده است." + note;
+  }
+
+  const typeLabels: Record<string, string> = {
+    study: "مطالعه",
+    video: "ویدیو",
+    test: "تست",
+    note: "جزوه/یادداشت",
+  };
+  const lines = tasks.map((task, index) =>
+    (index + 1) + ". **" + task.title + "** — " + task.start + " تا " + task.end +
+    " · " + (typeLabels[task.type] ?? task.type) +
+    " · وضعیت: " + (task.done ? "انجام‌شده" : "انجام‌نشده")
+  );
+  return [
+    "برنامه ثبت‌شده‌ات برای " + dateLabel + " دقیقاً شامل " + tasks.length + " فعالیت است:",
+    ...lines,
+    ...(day?.note?.trim() ? ["یادداشت ثبت‌شده: " + day.note.trim()] : []),
+    "",
+    "این فهرست مستقیماً از برنامه ذخیره‌شده خوانده شده و فعالیت پیشنهادی به آن اضافه نشده است.",
+  ].join("\\n");
+}
+
 const planDraftSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   tasks: z.array(z.object({
@@ -66,7 +122,12 @@ async function buildPlannerContext(userId: mongoose.Types.ObjectId, localDate?: 
     .sort({ date: 1 })
     .limit(181)
     .lean();
-  console.info("[PLANS] ai-context", { count: plans.length, from, to });
+  console.info("[PLANS] ai-context", {
+    count: plans.length,
+    taskCount: plans.reduce((sum, day) => sum + (day.tasks?.length ?? 0), 0),
+    from,
+    to,
+  });
 
   if (!plans.length) {
     return "هنوز برنامه ذخیره‌شده‌ای برای این دانش‌آموز در بازه اخیر وجود ندارد. در صورت درخواست ساخت برنامه، می‌توانی بر اساس اطلاعاتی که کاربر در همین گفتگو داده یک پیش‌نویس پیشنهاد کنی.";
@@ -163,17 +224,21 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ].filter(Boolean).join("\n")
     : undefined;
 
-  const aiResult = await generateGeminiReply(
-    [...history, { role: "user", content: latestUserMessage }],
-    {
-      name: user.name,
-      role: user.role,
-      persona: parsed.data.persona ?? "balanced",
-      plannerContext,
-      userId: user.role === "student" ? user._id : undefined,
-      localDate: parsed.data.localDate,
-    },
-  );
+  const exactTodayRead = user.role === "student" &&
+    isExactTodayPlanReadRequest(latestUserMessage);
+  const aiResult = exactTodayRead
+    ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate) }
+    : await generateGeminiReply(
+        [...history, { role: "user", content: latestUserMessage }],
+        {
+          name: user.name,
+          role: user.role,
+          persona: parsed.data.persona ?? "balanced",
+          plannerContext,
+          userId: user.role === "student" ? user._id : undefined,
+          localDate: parsed.data.localDate,
+        },
+      );
 
   let reply = aiResult.text;
   let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
