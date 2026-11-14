@@ -12,6 +12,11 @@ import {
   parseUpdateTheme,
 } from "../validators/theme.validators.js";
 
+function idParam(req: Request): string {
+  const raw = req.params.id;
+  return Array.isArray(raw) ? String(raw[0] ?? "") : String(raw ?? "");
+}
+
 /** GET /api/themes/active — عمومی */
 export async function getActive(_req: Request, res: Response): Promise<void> {
   const theme = await getActiveTheme();
@@ -34,18 +39,18 @@ export async function create(req: Request, res: Response): Promise<void> {
 /** PUT /api/themes/:id — ادمین */
 export async function update(req: Request, res: Response): Promise<void> {
   const input = parseUpdateTheme(req.body);
-  const theme = await updateTheme(req.params.id, input);
+  const theme = await updateTheme(idParam(req), input);
   res.json({ ok: true, theme });
 }
 
 /** POST /api/themes/:id/activate — ادمین */
 export async function activate(req: Request, res: Response): Promise<void> {
-  const theme = await activateTheme(req.params.id);
+  const theme = await activateTheme(idParam(req));
   res.json({ ok: true, theme });
 }
 
 /** DELETE /api/themes/:id — ادمین */
 export async function remove(req: Request, res: Response): Promise<void> {
-  await deleteTheme(req.params.id);
+  await deleteTheme(idParam(req));
   res.json({ ok: true });
 }
