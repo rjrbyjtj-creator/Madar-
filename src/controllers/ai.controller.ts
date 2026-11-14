@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import type { Request, Response } from "express";
 import { Conversation } from "../models/Conversation.js";
+import { Plan } from "../models/Plan.js";
 import { AppError } from "../utils/errors.js";
 import { generateGeminiReply, type GeminiMessage } from "../services/gemini.service.js";
 
@@ -20,6 +21,42 @@ const chatSchema = z.object({
 });
 
 type AuthUser = { _id: mongoose.Types.ObjectId; name?: string; role?: string };
+
+function isPlannerReviewRequest(message: string): boolean {
+  return /(برنامه|پلن).{0,45}(من|م|امروز|این هفته|ببین|بررسی|تحلیل|نظر|چطوره|چطور)|نظر.{0,20}(برنامه|پلن)|تحلیل.{0,20}(برنامه|پلن)/i.test(message);
+}
+
+async function buildPlannerContext(userId: mongoose.Types.ObjectId): Promise<string> {
+  const fromDate = new Date();
+  fromDate.setUTCDate(fromDate.getUTCDate() - 14);
+  const toDate = new Date();
+  toDate.setUTCDate(toDate.getUTCDate() + 30);
+  const from = fromDate.toISOString().slice(0, 10);
+  const to = toDate.toISOString().slice(0, 10);
+  const plans = await Plan.find({ user: userId, date: { $gte: from, $lte: to } })
+    .select("date tasks note")
+    .sort({ date: 1 })
+    .limit(45)
+    .lean();
+
+  if (!plans.length) {
+    return "برنامه‌ای برای این دانش‌آموز در بازه اخیر ثبت نشده است. از او بخواه ابتدا در صفحه برنامه‌ریزی فعالیت‌هایش را ثبت و ذخیره کند.";
+  }
+
+  const compact = plans.map((day) => ({
+    date: day.date,
+    tasks: (day.tasks ?? []).map((task) => ({
+      title: task.title,
+      category: task.type,
+      start: task.start,
+      end: task.end,
+      completed: Boolean(task.done),
+    })),
+    note: day.note || "",
+  }));
+  return "برنامه ثبت‌شده دانش‌آموز در سامانه (JSON):\n" + JSON.stringify(compact).slice(0, 12000);
+}
+
 
 export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const parsed = chatSchema.safeParse(req.body);
@@ -69,12 +106,18 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     content: item.content,
   }));
 
+  const plannerContext =
+    user.role === "student" && isPlannerReviewRequest(latestUserMessage)
+      ? await buildPlannerContext(user._id)
+      : undefined;
+
   const reply = await generateGeminiReply(
     [...history, { role: "user", content: latestUserMessage }],
     {
       name: user.name,
       role: user.role,
       persona: parsed.data.persona ?? "balanced",
+      plannerContext,
     },
   );
 
