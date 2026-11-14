@@ -86,7 +86,7 @@ export async function seedDefaultThemes(): Promise<void> {
     for (const theme of DEFAULT_THEMES) {
       await Theme.updateOne(
         { slug: theme.slug },
-        { $setOnInsert: { ...theme, isActive: Boolean(theme.isActive), isDefault: true } },
+        { $setOnInsert: { ...theme, isActive: false, isDefault: true } },
         { upsert: true },
       );
     }
