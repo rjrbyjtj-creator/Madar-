@@ -63,7 +63,7 @@ async function buildExactTodayPlanReply(
   }).format(new Date(date + "T12:00:00.000Z"));
 
   if (!tasks.length) {
-    const note = day?.note?.trim() ? "\\nیادداشت ثبت‌شده: " + day.note.trim() : "";
+    const note = day?.note?.trim() ? "\nیادداشت ثبت‌شده: " + day.note.trim() : "";
     return "در برنامه‌ریزی من برای " + dateLabel + " فعالیتی ثبت نشده است." + note;
   }
 
@@ -84,7 +84,7 @@ async function buildExactTodayPlanReply(
     ...(day?.note?.trim() ? ["یادداشت ثبت‌شده: " + day.note.trim()] : []),
     "",
     "این فهرست مستقیماً از برنامه ذخیره‌شده خوانده شده و فعالیت پیشنهادی به آن اضافه نشده است.",
-  ].join("\\n");
+  ].join("\n");
 }
 
 const planDraftSchema = z.object({
