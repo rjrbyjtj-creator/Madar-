@@ -4,6 +4,7 @@ import { createApp } from "./app.js";
 import { connectDB } from "./config/database.js";
 import { env } from "./config/env.js";
 import { seedDefaultAdmin } from "./services/seed.service.js";
+import { seedDefaultThemes } from "./services/theme.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
 import { logger } from "./utils/logger.js";
 
@@ -19,7 +20,6 @@ async function shutdown(signal: string, server: Server): Promise<void> {
   forceExit.unref();
 
   server.close();
-  // long polling تا ۲۵ ثانیه معطل می‌ماند؛ بیشتر از ۳ ثانیه صبر نمی‌کنیم.
   await Promise.race([stopTelegramBot(), new Promise((resolve) => setTimeout(resolve, 3_000))]);
   await mongoose.connection.close();
 
@@ -30,6 +30,7 @@ async function startServer(): Promise<void> {
   try {
     await connectDB();
     await seedDefaultAdmin();
+    await seedDefaultThemes();
     startTelegramBot();
 
     const server = createApp().listen(env.PORT, () => {
