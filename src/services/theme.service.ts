@@ -143,7 +143,7 @@ export async function createTheme(input: {
   name: string;
   slug?: string;
   colors: ThemeColors;
-  font?: string;
+  font?: ThemeDocument["font"];
   mode?: "light" | "dark";
 }): Promise<PublicTheme> {
   const baseSlug = (input.slug || input.name)
