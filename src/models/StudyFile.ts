@@ -7,6 +7,7 @@ const studyFileSchema = new mongoose.Schema({
   mimeType: { type: String, default: "application/pdf" },
   fileSize: { type: Number, required: true, min: 1 },
   caption: { type: String, default: "", maxlength: 1000 },
+  subject: { type: String, default: "عمومی", trim: true, maxlength: 60, index: true },
   uploadedByChatId: { type: String, required: true, index: true },
   uploadedByName: { type: String, default: "" },
   telegramMessageId: { type: Number },
