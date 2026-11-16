@@ -136,6 +136,7 @@ async function buildPlannerContext(userId: mongoose.Types.ObjectId, localDate?: 
   const compact = plans.map((day) => ({
     date: day.date,
     tasks: (day.tasks ?? []).map((task) => ({
+      id: task.id,
       title: task.title,
       category: task.type,
       start: task.start,
