@@ -24,7 +24,7 @@ export async function requestRegistrationCode(input:Input):Promise<{resendAfter:
   const doc=await RegistrationOtp.create({
     phone:input.phone,email:input.email,channel:input.channel,destination:target,
     ...(input.channel==="telegram"?{chatId:telegram!.chatId}:{}),
-    codeHash:hash(input.phone,code),registrationData:{name:input.name,email:input.email,phone:input.phone,passwordHash:await hashPassword(input.pass),...(input.channel==="telegram"?{telegramChatId:(destination as {chatId:string}).chatId,telegramUsername:telegram!.username}:{}),schoolName:input.schoolName,officialSchoolName:input.officialSchoolName,grade:input.grade,fieldOfStudy:input.fieldOfStudy},
+    codeHash:hash(input.phone,code),registrationData:{name:input.name,email:input.email,phone:input.phone,passwordHash:await hashPassword(input.pass),...(input.channel==="telegram"?{telegramChatId:telegram!.chatId,telegramUsername:telegram!.username}:{}),schoolName:input.schoolName,officialSchoolName:input.officialSchoolName,grade:input.grade,fieldOfStudy:input.fieldOfStudy},
     expiresAt:new Date(Date.now()+env.OTP_EXPIRES_MINUTES*60000),
   });
   try {
