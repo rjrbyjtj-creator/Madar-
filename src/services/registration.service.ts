@@ -15,16 +15,16 @@ const hash=(phone:string,code:string)=>createHmac("sha256",env.JWT_SECRET).updat
 export async function requestRegistrationCode(input:Input):Promise<{resendAfter:number;expiresIn:number}> {
   if(await User.exists({phone:input.phone})) throw new AppError(409,"PHONE_TAKEN","این شماره قبلاً ثبت‌نام کرده. وارد شو.");
   if(await User.exists({email:input.email})) throw new AppError(409,"EMAIL_TAKEN","این ایمیل قبلاً ثبت‌نام کرده. وارد شو.");
-  const destination=input.channel==="email"?input.email:(await resolveTelegramChat(input.chat||""));
-  const target=input.channel==="email"?input.email:destination.chatId;
+  const telegram = input.channel==="telegram" ? await resolveTelegramChat(input.chat||"") : null;
+  const target = input.channel==="email" ? input.email : telegram!.chatId;
   const last=await RegistrationOtp.findOne({phone:input.phone,channel:input.channel,consumedAt:null}).sort({issuedAt:-1}).select("issuedAt").lean();
   if(last){const wait=Math.ceil(env.OTP_RESEND_SECONDS-(Date.now()-last.issuedAt.getTime())/1000);if(wait>0)throw new AppError(429,"OTP_COOLDOWN",`بعد از ${wait} ثانیه می‌تونی دوباره کد بگیری.`,{retryAfter:wait});}
   const code=String(randomInt(100000,1000000));
   await RegistrationOtp.updateMany({phone:input.phone,consumedAt:null},{$set:{consumedAt:new Date()}});
   const doc=await RegistrationOtp.create({
     phone:input.phone,email:input.email,channel:input.channel,destination:target,
-    ...(input.channel==="telegram"?{chatId:(destination as {chatId:string}).chatId}:{}),
-    codeHash:hash(input.phone,code),registrationData:{name:input.name,email:input.email,phone:input.phone,passwordHash:await hashPassword(input.pass),...(input.channel==="telegram"?{telegramChatId:(destination as {chatId:string}).chatId,telegramUsername:(destination as {username:string|null}).username}:{}),schoolName:input.schoolName,officialSchoolName:input.officialSchoolName,grade:input.grade,fieldOfStudy:input.fieldOfStudy},
+    ...(input.channel==="telegram"?{chatId:telegram!.chatId}:{}),
+    codeHash:hash(input.phone,code),registrationData:{name:input.name,email:input.email,phone:input.phone,passwordHash:await hashPassword(input.pass),...(input.channel==="telegram"?{telegramChatId:(destination as {chatId:string}).chatId,telegramUsername:telegram!.username}:{}),schoolName:input.schoolName,officialSchoolName:input.officialSchoolName,grade:input.grade,fieldOfStudy:input.fieldOfStudy},
     expiresAt:new Date(Date.now()+env.OTP_EXPIRES_MINUTES*60000),
   });
   try {
