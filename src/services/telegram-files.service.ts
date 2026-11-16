@@ -101,11 +101,14 @@ async function handle(message: TgMessage): Promise<void> {
     await reply(message.chat.id, "حجم فایل نباید بیشتر از ۲۵ مگابایت باشد.");
     return;
   }
+  const caption = (message.caption || "").trim();
+  const subjectMatch = caption.match(/(?:درس|موضوع)\s*[:：-]\s*([^\n،,;؛]+)/i) || caption.match(/^\[([^\]]+)\]/);
+  const subject = (subjectMatch?.[1] || "عمومی").trim().slice(0, 60) || "عمومی";
   const saved = await StudyFile.findOneAndUpdate(
     { telegramFileUniqueId: doc.file_unique_id },
     { $set: {
       telegramFileId: doc.file_id, fileName, mimeType: "application/pdf",
-      fileSize: doc.file_size || 1, caption: message.caption || "",
+      fileSize: doc.file_size || 1, caption, subject,
       uploadedByChatId: chatId,
       uploadedByName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" "),
       telegramMessageId: message.message_id, isActive: true,
