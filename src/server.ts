@@ -7,6 +7,7 @@ import { seedDefaultAdmin } from "./services/seed.service.js";
 import { seedDefaultThemes } from "./services/theme.service.js";
 import { seedDefaultArticles } from "./services/articles.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
+import { startTelegramFilesBot, stopTelegramFilesBot } from "./services/telegram-files.service.js";
 import { logger } from "./utils/logger.js";
 
 let shuttingDown = false;
@@ -21,7 +22,7 @@ async function shutdown(signal: string, server: Server): Promise<void> {
   forceExit.unref();
 
   server.close();
-  await Promise.race([stopTelegramBot(), new Promise((resolve) => setTimeout(resolve, 3_000))]);
+  await Promise.race([Promise.all([stopTelegramBot(), stopTelegramFilesBot()]), new Promise((resolve) => setTimeout(resolve, 3_000))]);
   await mongoose.connection.close();
 
   process.exit(0);
@@ -34,6 +35,7 @@ async function startServer(): Promise<void> {
     await seedDefaultThemes();
     await seedDefaultArticles();
     startTelegramBot();
+    startTelegramFilesBot();
 
     const server = createApp().listen(env.PORT, () => {
       logger.info(`Server running on http://localhost:${env.PORT}`);
