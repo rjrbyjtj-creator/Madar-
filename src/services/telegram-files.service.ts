@@ -113,10 +113,13 @@ async function handle(message: TgMessage): Promise<void> {
     ["عربی", ["عربی"]],
     ["دینی", ["دینی", "دین و زندگی"]],
   ];
-  const labeledSubject = caption.match(/(?:درس|موضوع)\s*[:：-]\s*([^\n،,;؛]+)/i)?.[1]
-    || caption.match(/^\[([^\]]+)\]/)?.[1];
+  const labeledPrefix = ["درس:", "درس：", "درس-", "موضوع:", "موضوع：", "موضوع-"].find(prefix => caption.startsWith(prefix));
+  const bracketedSubject = caption.startsWith("[") ? caption.slice(1).split("]")[0] : "";
+  const labeledSubject = labeledPrefix
+    ? caption.slice(labeledPrefix.length).split(/[\n،,;؛]/)[0]
+    : bracketedSubject;
   const matchedSubject = subjectAliases.find(([, aliases]) => aliases.some(alias => subjectText.includes(alias)));
-  const plainCaption = caption.replace(/^(?:درس\s+)/i, "").trim();
+  const plainCaption = (caption.startsWith("درس ") ? caption.slice(5) : caption).trim();
   const subject = (labeledSubject?.trim() || matchedSubject?.[0] || (plainCaption.length <= 60 ? plainCaption : "") || "عمومی").slice(0, 60) || "عمومی";
   const saved = await StudyFile.findOneAndUpdate(
     { telegramFileUniqueId: doc.file_unique_id },
