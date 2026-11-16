@@ -16,6 +16,8 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().default(""),
   GROQ_MODEL: z.string().min(1).default("openai/gpt-oss-120b"),
   OPENROUTER_API_KEY: z.string().default(""),
+  CLOUDFLARE_API_TOKEN: z.string().default(""),
+  CLOUDFLARE_ACCOUNT_ID: z.string().default(""),
   GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
   GEMINI_TTS_MODEL: z.string().min(1).default("gemini-3.1-flash-tts-preview"),
   GEMINI_LIVE_MODEL: z.string().min(1).default("gemini-3.8-live"),
