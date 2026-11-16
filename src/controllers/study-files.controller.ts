@@ -10,7 +10,7 @@ export async function listStudyFiles(req: Request, res: Response): Promise<void>
   const filter: Record<string, unknown> = { isActive: true };
   if (subject && subject !== "همه") filter.subject = subject;
   if (q) {
-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = q.split("").map(ch => "\\^$.*+?()[]{}|".includes(ch) ? "\\" + ch : ch).join("");
     filter.$or = [
       { fileName: { $regex: escaped, $options: "i" } },
       { caption: { $regex: escaped, $options: "i" } },
