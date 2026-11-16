@@ -1,5 +1,7 @@
+import { randomBytes } from "node:crypto";
 import { User } from "../models/User.js";
 import { StudyFile } from "../models/StudyFile.js";
+import { hashPassword } from "../utils/security.js";
 
 type TgResponse<T> = { ok: boolean; result?: T; description?: string };
 type TgDocument = { file_id: string; file_unique_id: string; file_name?: string; mime_type?: string; file_size?: number };
@@ -27,23 +29,45 @@ async function handle(message: TgMessage): Promise<void> {
   const chatId = String(message.chat.id);
   let admin = await User.findOne({ telegramChatId: chatId, role: "admin", isActive: true }).select("_id name").lean();
   if (message.text?.startsWith("/start")) {
-    // Link only the pre-authorized administrator's exact Telegram username.
-    // Telegram supplies the numeric sender ID in the authenticated update;
-    // never accept a chat ID typed by the user.
+    // Provision one dedicated admin integration account for the explicitly
+    // allowlisted Telegram username. The numeric ID comes from Telegram's
+    // authenticated private-chat update, never from user-supplied text.
     const senderUsername = message.from?.username?.replace(/^@/, "").toLowerCase();
     if (!admin && message.from?.id && message.chat.id === message.from.id && senderUsername === "amir168shad") {
-      const account = await User.findOne({ telegramUsername: "amir168shad", role: "admin", isActive: true }).select("_id telegramChatId").lean();
-      if (account && (!account.telegramChatId || account.telegramChatId === chatId)) {
+      let account = await User.findOne({ telegramUsername: "amir168shad" }).select("_id name role telegramChatId").lean();
+      if (!account) {
+        const randomPassword = randomBytes(48).toString("hex");
+        try {
+          const created = await User.create({
+            name: "مدیر فایل‌های مدار",
+            email: `telegram-${message.from.id}@accounts.madar.invalid`,
+            phone: `tg-${message.from.id}`,
+            passwordHash: await hashPassword(randomPassword),
+            telegramUsername: "amir168shad",
+            telegramChatId: chatId,
+            role: "admin",
+            isTelegramVerified: true,
+            isActive: true,
+          });
+          account = { _id: created._id, name: created.name, role: created.role, telegramChatId: created.telegramChatId };
+        } catch (error) {
+          console.error("[TELEGRAM_FILES] admin provisioning failed:", error instanceof Error ? error.message : error);
+          account = await User.findOne({ telegramUsername: "amir168shad" }).select("_id name role telegramChatId").lean();
+        }
+      } else if (account.role === "admin" && (!account.telegramChatId || account.telegramChatId === chatId)) {
         await User.updateOne(
-          { _id: account._id, $or: [{ telegramChatId: { $exists: false } }, { telegramChatId: "" }, { telegramChatId: chatId }] },
-          { $set: { telegramChatId: chatId, telegramUsername: "amir168shad", isTelegramVerified: true } },
+          { _id: account._id, role: "admin", $or: [{ telegramChatId: { $exists: false } }, { telegramChatId: "" }, { telegramChatId: chatId }] },
+          { $set: { telegramChatId: chatId, isTelegramVerified: true } },
         );
-        admin = await User.findOne({ _id: account._id, telegramChatId: chatId, role: "admin", isActive: true }).select("_id name").lean();
+        account = await User.findOne({ _id: account._id, telegramChatId: chatId, role: "admin", isActive: true }).select("_id name role telegramChatId").lean();
+      }
+      if (account?.role === "admin" && account.telegramChatId === chatId) {
+        admin = { _id: account._id, name: account.name };
       }
     }
     await reply(message.chat.id, admin
-      ? "✅ حساب مدیر با موفقیت به ربات فایل‌های مدار متصل شد. حالا فایل PDF را به‌صورت Document ارسال کن."
-      : "⛔️ اتصال خودکار انجام نشد. فقط حساب مدیر ثبت‌شده با نام کاربری تلگرام @amir168shad مجاز است؛ مطمئن شو با همان حساب تلگرام پیام داده‌ای و نام کاربری تلگرام در حساب مدیر سامانه ثبت شده است.");
+      ? "✅ حساب مدیر فایل‌های مدار ساخته/متصل شد. حالا فایل PDF را به‌صورت Document ارسال کن."
+      : "⛔️ اتصال انجام نشد. باید از حساب تلگرام @amir168shad در گفتگوی خصوصی همین ربات پیام بدهی. اگر این نام کاربری قبلاً به حساب غیرمدیر دیگری در سایت متصل باشد، برای امنیت ارتقای خودکار انجام نمی‌شود.");
     return;
   }
   if (!admin) {
