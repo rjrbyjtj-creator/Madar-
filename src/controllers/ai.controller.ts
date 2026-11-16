@@ -242,7 +242,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       );
 
   let reply = aiResult.text;
-  let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;\n  const planDeletionProposal = aiResult.planDeletionProposal;
+  let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
+  const planDeletionProposal = aiResult.planDeletionProposal;
   const draftMatch = reply.match(/<MADAR_PLAN_DRAFT>([\s\S]*?)<\/MADAR_PLAN_DRAFT>/);
   if (draftMatch) {
     try {
@@ -274,7 +275,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   res.json({
     ok: true,
     reply,
-    ...(planProposal ? { planProposal } : {}),\n    ...(planDeletionProposal ? { planDeletionProposal } : {}),
+    ...(planProposal ? { planProposal } : {}),
+    ...(planDeletionProposal ? { planDeletionProposal } : {}),
     model: "gemini",
     conversationId,
     title,
