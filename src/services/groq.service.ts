@@ -115,7 +115,7 @@ export async function generateGroqReply(
   const tools = student.userId ? toolDefinitions() : undefined;
 
   try {
-    for (let round = 0; round < 4; round += 1) {
+    for (let round = 0; round < 5; round += 1) {
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -127,7 +127,7 @@ export async function generateGroqReply(
           messages: chatMessages,
           temperature: 0.6,
           max_completion_tokens: 2048,
-          ...(tools ? { tools, tool_choice: "auto" } : {}),
+          ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
         }),
         signal: AbortSignal.timeout(45_000),
       });
@@ -149,9 +149,9 @@ export async function generateGroqReply(
       const calls = message?.tool_calls ?? [];
       if (!calls.length) {
         const text = typeof message?.content === "string" ? message.content.trim() : "";
-        if (!text) throw new AppError(502, "GROQ_EMPTY_RESPONSE", "مدل Groq پاسخ متنی برنگرداند.");
+        if (!text && !proposal && !deletionProposal) throw new AppError(502, "GROQ_EMPTY_RESPONSE", "مدل Groq پاسخ متنی برنگرداند.");
         return {
-          text: text || (proposal ? "پیش‌نویس برنامه آماده شد؛ لطفاً آن را بررسی و تأیید کن." : deletionProposal ? "پیش‌نویس حذف آماده شد؛ لطفاً موارد را بررسی و تأیید کن." : ""),
+          text: text || (proposal ? "پیش‌نویس برنامه آماده شد؛ لطفاً آن را بررسی و تأیید کن." : "پیش‌نویس حذف آماده شد؛ لطفاً موارد را بررسی و تأیید کن."),
           ...(proposal ? { planProposal: proposal } : {}),
           ...(deletionProposal ? { planDeletionProposal: deletionProposal } : {}),
         };
