@@ -37,6 +37,29 @@ export const plannerToolDeclarations = [
     },
   },
   {
+    name: "propose_delete_plans",
+    description: "درخواست صریح دانش‌آموز برای حذف فعالیت‌های مشخص‌شده از برنامه ذخیره‌شده را به پیش‌نویس حذف تبدیل کن. ابتدا با get_my_plans شناسه و تاریخ دقیق فعالیت‌ها را پیدا کن. این ابزار چیزی را حذف نمی‌کند؛ فقط پس از تأیید روشن دانش‌آموز در رابط چت حذف انجام می‌شود. اگر چند فعالیت وجود دارد و منظور دقیق نیست، سؤال روشن‌کننده بپرس و همه برنامه را حدس‌زده حذف نکن.",
+    parametersJsonSchema: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          minItems: 1,
+          maxItems: 30,
+          items: {
+            type: "object",
+            properties: {
+              date: { type: "string", description: "تاریخ میلادی فعالیت به فرمت YYYY-MM-DD" },
+              taskId: { type: "string", description: "شناسه دقیق فعالیت که از get_my_plans به دست آمده" },
+            },
+            required: ["date", "taskId"],
+          },
+        },
+      },
+      required: ["items"],
+    },
+  },
+  {
     name: "propose_plan",
     description: "یک پیش‌نویس برنامه برای تاریخ مشخص بساز تا به دانش‌آموز نشان داده شود. این ابزار چیزی را ذخیره نمی‌کند؛ ثبت فقط پس از تأیید صریح دانش‌آموز در رابط چت انجام می‌شود.",
     parametersJsonSchema: {
