@@ -271,7 +271,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const aiStudentContext = {
     name: user.name,
     role: user.role,
-    persona: parsed.data.persona ?? "balanced",
+    persona: parsed.data.persona ?? "buddy",
     plannerContext,
     availableFilesContext,
     userId: user.role === "student" ? user._id : undefined,
