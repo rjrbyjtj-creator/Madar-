@@ -4,6 +4,25 @@ import { StudyFile } from "../models/StudyFile.js";
 import { getTelegramFileStream } from "../services/telegram-files.service.js";
 import { AppError } from "../utils/errors.js";
 
+
+function inferLegacySubject(caption: unknown, fileName: unknown): string {
+  const source = [String(caption || ""), String(fileName || "").replace(/\\.pdf$/i, "")].join(" ").toLowerCase();
+  const subjects: Array<[string, string[]]> = [
+    ["فیزیک", ["فیزیک", "physics"]],
+    ["ریاضی", ["ریاضی", "ریاضیات", "math", "mathematics"]],
+    ["شیمی", ["شیمی", "chemistry"]],
+    ["زیست‌شناسی", ["زیست‌شناسی", "زیست شناسی", "زیست", "biology"]],
+    ["ادبیات", ["ادبیات", "فارسی", "literature"]],
+    ["زبان انگلیسی", ["زبان انگلیسی", "انگلیسی", "english"]],
+    ["عربی", ["عربی"]],
+    ["دینی", ["دینی", "دین و زندگی"]],
+  ];
+  const explicit = String(caption || "").match(/(?:درس|موضوع)\\s*[:：-]\\s*([^\\n،,;؛]+)/i)?.[1]
+    || String(caption || "").match(/^\\[([^\\]]+)\\]/)?.[1];
+  if (explicit?.trim()) return explicit.trim().slice(0, 60);
+  return subjects.find(([, aliases]) => aliases.some(alias => source.includes(alias)))?.[0] || "عمومی";
+}
+
 export async function listStudyFiles(req: Request, res: Response): Promise<void> {
   const q = String(req.query.q || "").trim().slice(0, 120);
   const subject = String(req.query.subject || "").trim().slice(0, 60);
@@ -22,7 +41,7 @@ export async function listStudyFiles(req: Request, res: Response): Promise<void>
     .sort({ createdAt: -1 }).limit(300).lean();
   res.json({ ok: true, files: files.map(f => ({
     id: String(f._id), name: f.fileName, mimeType: f.mimeType,
-    size: f.fileSize, caption: f.caption, subject: f.subject || "عمومی",
+    size: f.fileSize, caption: f.caption, subject: f.subject && f.subject !== "عمومی" ? f.subject : inferLegacySubject(f.caption, f.fileName),
     uploadedBy: f.uploadedByName, createdAt: f.createdAt,
     contentUrl: `/api/study-files/${f._id}/content`,
   })) });
