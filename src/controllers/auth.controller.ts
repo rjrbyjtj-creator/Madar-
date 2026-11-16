@@ -1,12 +1,11 @@
 import type { Request, Response } from "express";
 import { env } from "../config/env.js";
 import {
-  completeRegistration,
   loginWithPassword,
   requestPasswordResetCode,
-  requestRegistrationCode,
   resetPassword,
 } from "../services/auth.service.js";
+import { requestRegistrationCode, completeRegistration } from "../services/registration.service.js";
 import {
   parseForgotSendCode,
   parseLogin,
