@@ -130,7 +130,8 @@ async function callModel(
     ...(tools ? { tools, toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}),
   };
   let response = await ai.models.generateContent({ model, contents, config } as never);
-  let proposal: PlannerProposal | undefined;\n  let deletionProposal: PlannerDeletionProposal | undefined;
+  let proposal: PlannerProposal | undefined;
+  let deletionProposal: PlannerDeletionProposal | undefined;
 
   // Execute a bounded number of model tool rounds; tools are scoped to the authenticated student.
   for (let round = 0; round < 3 && studentId; round += 1) {
@@ -144,7 +145,8 @@ async function callModel(
       const name = call.name ?? "";
       const args = call.args ?? {};
       const executed = await executePlannerTool(name, args, studentId);
-      if (executed.proposal) proposal = executed.proposal;\n      if (executed.deletionProposal) deletionProposal = executed.deletionProposal;
+      if (executed.proposal) proposal = executed.proposal;
+      if (executed.deletionProposal) deletionProposal = executed.deletionProposal;
       functionResponses.push({
         functionResponse: {
           name,
@@ -173,7 +175,8 @@ async function callModel(
   return {
     ...finalResult,
     text: finalResult.text || (proposal ? "پیش‌نویس برنامه آماده شد؛ لطفاً آن را بررسی و تأیید کن." : ""),
-    ...(proposal ? { planProposal: proposal } : {}),\n    ...(deletionProposal ? { planDeletionProposal: deletionProposal } : {}),
+    ...(proposal ? { planProposal: proposal } : {}),
+    ...(deletionProposal ? { planDeletionProposal: deletionProposal } : {}),
   };
 }
 
