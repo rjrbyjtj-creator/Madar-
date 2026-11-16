@@ -5,7 +5,7 @@ import { Conversation } from "../models/Conversation.js";
 import { Plan } from "../models/Plan.js";
 import { AppError } from "../utils/errors.js";
 import { env } from "../config/env.js";
-import { generateGeminiReply, type GeminiMessage } from "../services/gemini.service.js";
+import { generateGeminiReply, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
 import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
