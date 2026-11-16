@@ -1,7 +1,11 @@
 import { Router } from "express";
-import { listStudentPlans, saveStudentPlan } from "../controllers/plans.controller.js";
+import { addStudentPlanTask, deleteStudentPlanTask, getStudentPlan, listStudentPlans, saveStudentPlan, updateStudentPlanTask } from "../controllers/plans.controller.js";
 import { requireAuth } from "../middlewares/auth.js";
 export const plansRouter = Router();
 plansRouter.use(requireAuth);
 plansRouter.get("/", listStudentPlans);
+plansRouter.get("/:date", getStudentPlan);
 plansRouter.put("/:date", saveStudentPlan);
+plansRouter.post("/:date/tasks", addStudentPlanTask);
+plansRouter.patch("/:date/tasks/:taskId", updateStudentPlanTask);
+plansRouter.delete("/:date/tasks/:taskId", deleteStudentPlanTask);
