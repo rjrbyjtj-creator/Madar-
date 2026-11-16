@@ -12,19 +12,11 @@ import {
  */
 
 export type SendRegisterCodeInput = {
-  chat: string;
-  phone: string;
-  email?: string;
+  channel: "telegram" | "email"; chat?: string; phone: string; email: string;
+  name: string; pass: string; schoolName: string; officialSchoolName: string; grade: string; fieldOfStudy: string;
 };
 
-export type VerifyRegisterInput = {
-  chat: string;
-  phone: string;
-  code: string;
-  name: string;
-  email: string;
-  pass: string;
-};
+export type VerifyRegisterInput = { phone: string; code: string; email: string; channel: "telegram" | "email" };
 
 export type LoginInput = {
   type: "id" | "phone";
@@ -116,28 +108,24 @@ function newPasswordField(body: Body): string {
 
 export function parseSendRegisterCode(input: unknown): SendRegisterCodeInput {
   const body = toBody(input);
-  const chat = chatField(body);
-  const phone = phoneField(body);
-
-  // ایمیل اختیاری است؛ اگر فرستاده شد باید معتبر باشد.
-  if (body.email === undefined || body.email === null || body.email === "") {
-    return { chat, phone };
-  }
-
-  return { chat, phone, email: emailField(body) };
+  const channel = body.channel === "email" ? "email" : body.channel === "telegram" ? "telegram" : null;
+  if (!channel) throw invalid("type");
+  const phone = phoneField(body), email = emailField(body), name = nameField(body);
+  const pass = newPasswordField(body);
+  const schoolName = text(body, "schoolName");
+  const officialSchoolName = text(body, "officialSchoolName");
+  const grade = text(body, "grade");
+  const fieldOfStudy = text(body, "fieldOfStudy");
+  if ([schoolName, officialSchoolName, grade, fieldOfStudy].some(v => !v || v.length > 200)) throw invalid("name");
+  const chat = channel === "telegram" ? chatField(body) : undefined;
+  return { channel, chat, phone, email, name, pass, schoolName, officialSchoolName, grade, fieldOfStudy };
 }
 
 export function parseVerifyRegister(input: unknown): VerifyRegisterInput {
   const body = toBody(input);
-
-  return {
-    chat: chatField(body),
-    phone: phoneField(body),
-    code: codeField(body),
-    name: nameField(body),
-    email: emailField(body),
-    pass: newPasswordField(body),
-  };
+  const channel = body.channel === "email" ? "email" : body.channel === "telegram" ? "telegram" : null;
+  if (!channel) throw invalid("type");
+  return { phone: phoneField(body), code: codeField(body), email: emailField(body), channel };
 }
 
 export function parseLogin(input: unknown): LoginInput {
