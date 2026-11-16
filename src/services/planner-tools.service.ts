@@ -144,7 +144,7 @@ export async function executePlannerTool(
   if (name === "propose_delete_plans") {
     const parsed = z.object({
       items: z.array(z.object({
-        date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         taskId: z.string().trim().min(1).max(64),
       })).min(1).max(30),
     }).safeParse(args);
