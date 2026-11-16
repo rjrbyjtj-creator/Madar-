@@ -28,7 +28,7 @@ async function reply(chatId: number, text: string): Promise<void> {
 async function handle(message: TgMessage): Promise<void> {
   if (message.chat.type !== "private") return;
   const chatId = String(message.chat.id);
-  let admin = await User.findOne({ telegramChatId: chatId, role: "admin", isActive: true }).select("_id name").lean();
+  let admin = await User.findOne({ telegramChatId: chatId, role: "admin", isActive: true }).select("_id name").lean<{ _id: any; name: string }>();
   if (message.text?.startsWith("/start")) {
     // Provision one dedicated admin integration account for the explicitly
     // allowlisted Telegram username. The numeric ID comes from Telegram's
