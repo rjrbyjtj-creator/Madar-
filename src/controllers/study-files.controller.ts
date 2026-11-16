@@ -17,10 +17,14 @@ function inferLegacySubject(caption: unknown, fileName: unknown): string {
     ["عربی", ["عربی"]],
     ["دینی", ["دینی", "دین و زندگی"]],
   ];
-  const explicit = String(caption || "").match(/(?:درس|موضوع)\\s*[:：-]\\s*([^\\n،,;؛]+)/i)?.[1]
-    || String(caption || "").match(/^\\[([^\\]]+)\\]/)?.[1];
-  if (explicit?.trim()) return explicit.trim().slice(0, 60);
-  return subjects.find(([, aliases]) => aliases.some(alias => source.includes(alias)))?.[0] || "عمومی";
+  const captionText = String(caption || "").trim();
+  const labeled = captionText.match(/(?:درس|موضوع)\s*[:：-]\s*([^\n،,;؛]+)/i)?.[1]
+    || captionText.match(/^\[([^\]]+)\]/)?.[1];
+  if (labeled?.trim()) return labeled.trim().slice(0, 60);
+  const matched = subjects.find(([, aliases]) => aliases.some(alias => source.includes(alias)))?.[0];
+  if (matched) return matched;
+  const plainCaption = captionText.replace(/^(?:درس\s+)/i, "").trim();
+  return plainCaption.length > 0 && plainCaption.length <= 60 ? plainCaption : "عمومی";
 }
 
 export async function listStudyFiles(req: Request, res: Response): Promise<void> {
