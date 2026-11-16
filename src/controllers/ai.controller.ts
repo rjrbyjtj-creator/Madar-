@@ -7,6 +7,7 @@ import { AppError } from "../utils/errors.js";
 import { generateGeminiReply, type GeminiMessage } from "../services/gemini.service.js";
 import { generateGroqReply } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
+import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
 
 const messageSchema = z.object({
   role: z.enum(["user", "model"]),
@@ -15,8 +16,8 @@ const messageSchema = z.object({
 
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
-  model: z.enum(["gemini", "groq", "grok", "openrouter"]).optional(),
-  modelId: z.enum(OPENROUTER_MODEL_IDS).optional(),
+  model: z.enum(["gemini", "groq", "grok", "openrouter", "cloudflare"]).optional(),
+  modelId: z.string().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
   persona: z.enum(["balanced", "friendly", "buddy", "witty"]).optional(),
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -231,7 +232,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
-  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : "gemini";
+  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : "gemini";
   const aiMessages = [...history, { role: "user" as const, content: latestUserMessage }];
   const aiStudentContext = {
     name: user.name,
@@ -246,8 +247,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext)
       : selectedProvider === "openrouter"
-        ? await generateOpenRouterReply(aiMessages, aiStudentContext, parsed.data.modelId ?? "nvidia/nemotron-3-ultra-550b-a55b:free")
-        : await generateGeminiReply(aiMessages, aiStudentContext);
+        ? await generateOpenRouterReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? "nvidia/nemotron-3-ultra-550b-a55b:free") as typeof OPENROUTER_MODEL_IDS[number])
+        : selectedProvider === "cloudflare"
+          ? await generateCloudflareReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
+          : await generateGeminiReply(aiMessages, aiStudentContext);
 
   let reply = aiResult.text;
   let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
