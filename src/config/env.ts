@@ -13,6 +13,8 @@ const envSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(1),
   GEMINI_API_KEY: z.string().default(""),
+  GROQ_API_KEY: z.string().default(""),
+  GROQ_MODEL: z.string().min(1).default("openai/gpt-oss-120b"),
   GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
   GEMINI_TTS_MODEL: z.string().min(1).default("gemini-3.1-flash-tts-preview"),
   GEMINI_LIVE_MODEL: z.string().min(1).default("gemini-3.8-live"),
