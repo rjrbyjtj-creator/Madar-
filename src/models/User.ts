@@ -60,6 +60,8 @@ const userSchema = new Schema(
       default: "student",
     },
 
+    isEmailVerified: { type: Boolean, default: false },
+
     isPhoneVerified: {
       type: Boolean,
       default: false,
