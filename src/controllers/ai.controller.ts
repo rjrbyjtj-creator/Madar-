@@ -4,8 +4,9 @@ import type { Request, Response } from "express";
 import { Conversation } from "../models/Conversation.js";
 import { Plan } from "../models/Plan.js";
 import { AppError } from "../utils/errors.js";
+import { env } from "../config/env.js";
 import { generateGeminiReply, type GeminiMessage } from "../services/gemini.service.js";
-import { generateGroqReply } from "../services/groq.service.js";
+import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
 
@@ -245,7 +246,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const aiResult = exactTodayRead
     ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
     : selectedProvider === "groq"
-      ? await generateGroqReply(aiMessages, aiStudentContext)
+      ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
         ? await generateOpenRouterReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? "nvidia/nemotron-3-ultra-550b-a55b:free") as typeof OPENROUTER_MODEL_IDS[number])
         : selectedProvider === "cloudflare"
