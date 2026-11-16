@@ -142,7 +142,7 @@ export async function generateOpenRouterReply(
           model: modelId,
           messages: chatMessages,
           temperature: 0.6,
-          max_tokens: 2048,
+          max_tokens: student.articleWriterContext ? 4096 : 2048,
           ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
         }),
         signal: AbortSignal.timeout(45_000),
