@@ -251,7 +251,11 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         ? await generateOpenRouterReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? "nvidia/nemotron-3-ultra-550b-a55b:free") as typeof OPENROUTER_MODEL_IDS[number])
         : selectedProvider === "cloudflare"
           ? await generateCloudflareReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
-          : await generateGeminiReply(aiMessages, aiStudentContext);
+          : await generateGeminiReply(
+              aiMessages,
+              aiStudentContext,
+              (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number],
+            );
 
   let reply = aiResult.text;
   let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
