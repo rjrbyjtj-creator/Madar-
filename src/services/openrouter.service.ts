@@ -126,7 +126,7 @@ export async function generateOpenRouterReply(
 
   try {
     for (let round = 0; round < 5; round += 1) {
-      const response = await fetch("https://api.openrouter.com/openai/v1/chat/completions", {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + env.OPENROUTER_API_KEY,
@@ -138,7 +138,7 @@ export async function generateOpenRouterReply(
           model: modelId,
           messages: chatMessages,
           temperature: 0.6,
-          max_completion_tokens: 2048,
+          max_tokens: 2048,
           ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
         }),
         signal: AbortSignal.timeout(45_000),
