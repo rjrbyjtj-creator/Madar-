@@ -44,7 +44,7 @@ export type PublicUser = {
 };
 
 /** فقط فیلدهای امن برای ارسال به مرورگر (بدون هش رمز و chat id). */
-export function toPublicUser(user: UserLike): PublicUser {
+export function toPublicUser(user: any): PublicUser {
   return {
     id: String(user._id),
     name: user.name,
