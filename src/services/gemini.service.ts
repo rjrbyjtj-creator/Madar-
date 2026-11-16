@@ -27,6 +27,12 @@ const SYSTEM_INSTRUCTION = `
 - هیچ‌گاه برنامه را بدون تأیید روشن دانش‌آموز ذخیره یا تغییر نده.
 `.trim();
 
+export const GEMINI_MODEL_IDS = [
+  "gemini-3.8-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+] as const;
+
 const TTS_MODEL = env.GEMINI_TTS_MODEL;
 
 /** Hard cap so a single slow model never burns 30–60s. */
@@ -190,7 +196,11 @@ export async function generateGeminiReply(
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
   },
+  selectedModel?: (typeof GEMINI_MODEL_IDS)[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
+  if (selectedModel && !GEMINI_MODEL_IDS.includes(selectedModel)) {
+    throw new AppError(400, "INVALID_GEMINI_MODEL", "مدل انتخاب‌شده Gemini معتبر نیست.");
+  }
   if (!env.GEMINI_API_KEY) {
     throw new AppError(
       503,
@@ -245,12 +255,9 @@ export async function generateGeminiReply(
     parts: [{ text: message.content }],
   }));
 
-  const primary = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
-  // One cheap/fast fallback only — never cascade 4–5 models (that was the 2-minute bug).
-  const fallback =
-    primary === "gemini-3.5-flash-lite" || primary === "gemini-3.1-flash-lite"
-      ? "gemini-3.6-flash"
-      : "gemini-3.5-flash-lite";
+  const primary = selectedModel ?? env.GEMINI_MODEL ?? "gemini-3.8-flash";
+  // Keep one lightweight fallback; the separate Gemini Live voice model is unchanged.
+  const fallback = primary === "gemini-3.5-flash-lite" ? "gemini-3.6-flash" : "gemini-3.5-flash-lite";
 
   const requestStartedAt = Date.now();
   let lastStatus = 502;
