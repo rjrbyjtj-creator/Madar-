@@ -81,7 +81,7 @@ export async function generateCloudflareReply(
   },
   modelId: typeof CLOUDFLARE_MODEL_IDS[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
-  if (!env.CLOUDFLARE_API_TOKEN) {
+  if (!env.CLOUDFLARE_API_TOKEN || !env.CLOUDFLARE_ACCOUNT_ID) {
     throw new AppError(503, "CLOUDFLARE_NOT_CONFIGURED", "کلید API یا شناسه حساب Cloudflare روی سرور تنظیم نشده است.");
   }
 
