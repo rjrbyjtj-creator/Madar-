@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { AppError } from "../utils/errors.js";
 import mongoose from "mongoose";
-import { executePlannerTool, plannerToolDeclarations, type PlannerProposal } from "./planner-tools.service.js";
+import { executePlannerTool, plannerToolDeclarations, type PlannerProposal, type PlannerDeletionProposal } from "./planner-tools.service.js";
 
 export type GeminiMessage = {
   role: "user" | "model";
@@ -120,7 +120,7 @@ async function callModel(
   systemInstruction: string,
   temperature: number,
   studentId?: mongoose.Types.ObjectId,
-): Promise<{ text: string; finishReason?: string; blocked?: boolean; planProposal?: PlannerProposal }> {
+): Promise<{ text: string; finishReason?: string; blocked?: boolean; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   const ai = createAI(timeoutMs);
   const tools = studentId ? [{ functionDeclarations: [...plannerToolDeclarations] }] : undefined;
   const config: Record<string, unknown> = {
@@ -130,7 +130,7 @@ async function callModel(
     ...(tools ? { tools, toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}),
   };
   let response = await ai.models.generateContent({ model, contents, config } as never);
-  let proposal: PlannerProposal | undefined;
+  let proposal: PlannerProposal | undefined;\n  let deletionProposal: PlannerDeletionProposal | undefined;
 
   // Execute a bounded number of model tool rounds; tools are scoped to the authenticated student.
   for (let round = 0; round < 3 && studentId; round += 1) {
@@ -144,7 +144,7 @@ async function callModel(
       const name = call.name ?? "";
       const args = call.args ?? {};
       const executed = await executePlannerTool(name, args, studentId);
-      if (executed.proposal) proposal = executed.proposal;
+      if (executed.proposal) proposal = executed.proposal;\n      if (executed.deletionProposal) deletionProposal = executed.deletionProposal;
       functionResponses.push({
         functionResponse: {
           name,
@@ -173,7 +173,7 @@ async function callModel(
   return {
     ...finalResult,
     text: finalResult.text || (proposal ? "پیش‌نویس برنامه آماده شد؛ لطفاً آن را بررسی و تأیید کن." : ""),
-    ...(proposal ? { planProposal: proposal } : {}),
+    ...(proposal ? { planProposal: proposal } : {}),\n    ...(deletionProposal ? { planDeletionProposal: deletionProposal } : {}),
   };
 }
 
@@ -187,7 +187,7 @@ export async function generateGeminiReply(
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
   },
-): Promise<{ text: string; planProposal?: PlannerProposal }> {
+): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   if (!env.GEMINI_API_KEY) {
     throw new AppError(
       503,
@@ -261,7 +261,7 @@ export async function generateGeminiReply(
     const started = Date.now();
     console.info("[AI] Gemini request started:", model, "timeout=", timeoutMs);
     try {
-      const { text, finishReason, blocked, planProposal } = await callModel(
+      const { text, finishReason, blocked, planProposal, planDeletionProposal } = await callModel(
         model,
         timeoutMs,
         contents,
@@ -280,7 +280,7 @@ export async function generateGeminiReply(
           Date.now() - requestStartedAt,
           "ms",
         );
-        return { text, ...(planProposal ? { planProposal } : {}) };
+        return { text, ...(planProposal ? { planProposal } : {}), ...(planDeletionProposal ? { planDeletionProposal } : {}) };
       }
 
       console.warn(
