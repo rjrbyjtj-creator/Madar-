@@ -76,6 +76,7 @@ export async function generateGroqReply(
     persona?: "balanced" | "friendly" | "buddy" | "witty";
     plannerContext?: string;
     availableFilesContext?: string;
+    articleWriterContext?: string;
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
   },
@@ -110,6 +111,7 @@ export async function generateGroqReply(
     plannerRules,
     student.plannerContext ?? "",
     student.availableFilesContext ?? "",
+    student.articleWriterContext ?? "",
     persona[student.persona ?? "balanced"],
     student.name ? "نام دانش‌آموز: " + student.name + "." : "",
   ].filter(Boolean).join("\n");
