@@ -193,6 +193,7 @@ export async function generateGeminiReply(
     role?: string;
     persona?: "balanced" | "friendly" | "buddy" | "witty";
     plannerContext?: string;
+    availableFilesContext?: string;
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
   },
@@ -244,6 +245,7 @@ export async function generateGeminiReply(
       "تاریخ محلی امروز دانش‌آموز: " + (student.localDate ?? new Date().toISOString().slice(0, 10)) + ". بازه ابزار را با این تاریخ محاسبه کن.",
     ].join("\n") : "",
     plannerInstruction,
+    student.availableFilesContext ?? "",
     personaInstructions[student.persona ?? "balanced"],
     student.name ? `نام دانش‌آموز: ${student.name}. فقط اگر طبیعی است از نام استفاده کن.` : "",
   ]
