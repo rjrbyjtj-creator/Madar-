@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Request, Response } from "express";
 import { Conversation } from "../models/Conversation.js";
 import { Plan } from "../models/Plan.js";
+import { StudyFile } from "../models/StudyFile.js";
 import { AppError } from "../utils/errors.js";
 import { env } from "../config/env.js";
 import { generateGeminiReply, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
@@ -155,6 +156,34 @@ async function buildPlannerContext(userId: mongoose.Types.ObjectId, localDate?: 
   return "برنامه ثبت‌شده دانش‌آموز در سامانه (JSON):\n" + JSON.stringify(compact).slice(0, 12000);
 }
 
+function isStudyFilesRequest(message: string): boolean {
+  return /(فایل|فایل.?ها|جزوه|جزوه.?ها|pdf|پی.?دی.?اف|منابع درسی|کتاب.?های? درسی)/i.test(message);
+}
+
+async function buildStudyFilesContext(): Promise<string> {
+  const files = await StudyFile.find({ isActive: true })
+    .select("fileName caption subject fileSize mimeType createdAt")
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean();
+
+  const rows = files.map((file, index) => ({
+    number: index + 1,
+    name: file.fileName,
+    subject: file.subject || "عمومی",
+    description: file.caption || "",
+    sizeBytes: file.fileSize,
+    type: file.mimeType || "application/pdf",
+    uploadedAt: file.createdAt,
+  }));
+
+  console.info("[STUDY_FILES] ai-context", { count: rows.length });
+  return [
+    "فهرست فایل‌های آموزشی فعال و قابل دسترس در کتابخانه مشترک مدار (داده واقعی پایگاه داده):",
+    rows.length ? JSON.stringify(rows).slice(0, 14000) : "در حال حاضر هیچ فایل فعالی ثبت نشده است.",
+    "این اطلاعات فقط برای پاسخ به پرسش درباره فایل‌ها و منابع درسی است. فقط فایل‌هایی را معرفی کن که در این فهرست وجود دارند؛ نام، درس و توضیحات را حدس نزن. اگر کاربر خواست فهرست فایل‌ها را ببیند، فایل‌ها را مرتب و خوانا بر اساس درس فهرست کن. وجود فایل به معنی امکان خواندن محتوای PDF نیست؛ فقط مشخصات فهرست در دسترس توست.",
+  ].join("\\n");
+}
 
 export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const parsed = chatSchema.safeParse(req.body);
@@ -216,6 +245,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
+  const availableFilesContext = isStudyFilesRequest(latestUserMessage)
+    ? await buildStudyFilesContext()
+    : undefined;
   const plannerContext = plannerRelevant
     ? [
         await buildPlannerContext(user._id, parsed.data.localDate),
@@ -241,6 +273,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     role: user.role,
     persona: parsed.data.persona ?? "balanced",
     plannerContext,
+    availableFilesContext,
     userId: user.role === "student" ? user._id : undefined,
     localDate: parsed.data.localDate,
   };
