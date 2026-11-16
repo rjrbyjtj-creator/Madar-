@@ -18,6 +18,11 @@ type UserLike = {
   telegramUsername?: string | null;
   isPhoneVerified: boolean;
   isTelegramVerified: boolean;
+  isEmailVerified?: boolean;
+  schoolName?: string;
+  officialSchoolName?: string;
+  grade?: string;
+  fieldOfStudy?: string;
   createdAt?: Date;
 };
 
@@ -30,6 +35,11 @@ export type PublicUser = {
   telegramUsername: string | null;
   isPhoneVerified: boolean;
   isTelegramVerified: boolean;
+  isEmailVerified: boolean;
+  schoolName: string | null;
+  officialSchoolName: string | null;
+  grade: string | null;
+  fieldOfStudy: string | null;
   createdAt: Date | null;
 };
 
@@ -44,6 +54,11 @@ export function toPublicUser(user: UserLike): PublicUser {
     telegramUsername: user.telegramUsername ?? null,
     isPhoneVerified: user.isPhoneVerified,
     isTelegramVerified: user.isTelegramVerified,
+    isEmailVerified: user.isEmailVerified ?? false,
+    schoolName: user.schoolName ?? null,
+    officialSchoolName: user.officialSchoolName ?? null,
+    grade: user.grade ?? null,
+    fieldOfStudy: user.fieldOfStudy ?? null,
     createdAt: user.createdAt ?? null,
   };
 }
