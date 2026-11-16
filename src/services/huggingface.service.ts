@@ -77,6 +77,7 @@ export async function generateHuggingFaceReply(
     role?: string;
     persona?: "balanced" | "friendly" | "buddy" | "witty";
     plannerContext?: string;
+    availableFilesContext?: string;
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
   },
@@ -112,6 +113,7 @@ export async function generateHuggingFaceReply(
     SYSTEM_INSTRUCTION,
     plannerRules,
     student.plannerContext ?? "",
+    student.availableFilesContext ?? "",
     persona[student.persona ?? "balanced"],
     student.name ? "نام دانش‌آموز: " + student.name + "." : "",
   ].filter(Boolean).join("\n");
