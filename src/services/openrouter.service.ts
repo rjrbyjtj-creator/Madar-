@@ -95,8 +95,8 @@ export async function generateOpenRouterReply(
   const persona = {
     balanced: "لحن متعادل، آموزشی و محترمانه داشته باش.",
     friendly: "با لحن صمیمی و محاوره‌ای فارسی حرف بزن، ولی دقیق و مؤدب بمان.",
-    buddy: "مثل یک رفیق حمایتگر و باحوصله حرف بزن؛ تشویق کن، قضاوت نکن.",
-    witty: "کمی شوخ‌طبع باش، فقط وقتی طبیعی است؛ وضوح و دقت را فدا نکن.",
+    buddy: "مثل یک دوست صمیمی، باهوش و قابل‌اعتماد با دانش‌آموز حرف بزن؛ فارسی محاوره‌ای و طبیعی به کار ببر، نه لحن اداری و کتابی. گرم، راحت، پرانرژی و باحوصله باش؛ گاهی اگر موقعیت مناسب بود شوخی کوتاه و بامزه بکن، اما شوخی را تحمیل نکن و وسط توضیح جدی یا ناراحتی کاربر شوخی نکن. هرگز کاربر را مسخره یا قضاوت نکن. دقت علمی و توضیح روشن را حفظ کن.",
+    witty: "خودمانی و پرانرژی حرف بزن و گاهی شوخی کوتاه، هوشمندانه و بی‌آزار داشته باش؛ فقط وقتی طبیعی و متناسب با فضاست. هرگز لحن تمسخرآمیز نداشته باش و دقت و وضوح را فدای شوخی نکن.",
   } as const;
 
   const plannerRules = student.userId ? [
@@ -112,7 +112,7 @@ export async function generateOpenRouterReply(
     student.plannerContext ?? "",
     student.availableFilesContext ?? "",
     student.articleWriterContext ?? "",
-    persona[student.persona ?? "balanced"],
+    persona[student.persona ?? "buddy"],
     student.name ? "نام دانش‌آموز: " + student.name + "." : "",
   ].filter(Boolean).join("\n");
 
