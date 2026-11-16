@@ -3,7 +3,7 @@ import { StudyFile } from "../models/StudyFile.js";
 
 type TgResponse<T> = { ok: boolean; result?: T; description?: string };
 type TgDocument = { file_id: string; file_unique_id: string; file_name?: string; mime_type?: string; file_size?: number };
-type TgMessage = { message_id: number; chat: { id: number; type: string }; from?: { first_name?: string; last_name?: string; username?: string }; text?: string; caption?: string; document?: TgDocument };
+type TgMessage = { message_id: number; chat: { id: number; type: string }; from?: { id: number; first_name?: string; last_name?: string; username?: string }; text?: string; caption?: string; document?: TgDocument };
 type TgUpdate = { update_id: number; message?: TgMessage };
 
 const token = () => process.env.TELEGRAM_FILES_BOT_TOKEN?.trim() || "";
@@ -25,11 +25,25 @@ async function reply(chatId: number, text: string): Promise<void> {
 async function handle(message: TgMessage): Promise<void> {
   if (message.chat.type !== "private") return;
   const chatId = String(message.chat.id);
-  const admin = await User.findOne({ telegramChatId: chatId, role: "admin", isActive: true }).select("_id name").lean();
+  let admin = await User.findOne({ telegramChatId: chatId, role: "admin", isActive: true }).select("_id name").lean();
   if (message.text?.startsWith("/start")) {
+    // Link only the pre-authorized administrator's exact Telegram username.
+    // Telegram supplies the numeric sender ID in the authenticated update;
+    // never accept a chat ID typed by the user.
+    const senderUsername = message.from?.username?.replace(/^@/, "").toLowerCase();
+    if (!admin && message.from?.id && message.chat.id === message.from.id && senderUsername === "amir168shad") {
+      const account = await User.findOne({ telegramUsername: "amir168shad", role: "admin", isActive: true }).select("_id telegramChatId").lean();
+      if (account && (!account.telegramChatId || account.telegramChatId === chatId)) {
+        await User.updateOne(
+          { _id: account._id, $or: [{ telegramChatId: { $exists: false } }, { telegramChatId: "" }, { telegramChatId: chatId }] },
+          { $set: { telegramChatId: chatId, telegramUsername: "amir168shad", isTelegramVerified: true } },
+        );
+        admin = await User.findOne({ _id: account._id, telegramChatId: chatId, role: "admin", isActive: true }).select("_id name").lean();
+      }
+    }
     await reply(message.chat.id, admin
-      ? "ربات مستقل فایل‌های درسی مدار فعال است. فایل PDF را همین‌جا ارسال کن تا در سامانه ثبت شود."
-      : "این ربات فقط برای مدیران تأییدشده سامانه فعال است. ابتدا حساب مدیر را به همین تلگرام متصل کن.");
+      ? "✅ حساب مدیر با موفقیت به ربات فایل‌های مدار متصل شد. حالا فایل PDF را به‌صورت Document ارسال کن."
+      : "⛔️ اتصال خودکار انجام نشد. فقط حساب مدیر ثبت‌شده با نام کاربری تلگرام @amir168shad مجاز است؛ مطمئن شو با همان حساب تلگرام پیام داده‌ای و نام کاربری تلگرام در حساب مدیر سامانه ثبت شده است.");
     return;
   }
   if (!admin) {
