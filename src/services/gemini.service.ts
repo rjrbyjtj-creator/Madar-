@@ -132,7 +132,7 @@ async function callModel(
   const config: Record<string, unknown> = {
     systemInstruction,
     temperature,
-    maxOutputTokens: 2048,
+    maxOutputTokens: student.articleWriterContext ? 4096 : 2048,
     ...(tools ? { tools, toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}),
   };
   let response = await ai.models.generateContent({ model, contents, config } as never);
