@@ -102,8 +102,22 @@ async function handle(message: TgMessage): Promise<void> {
     return;
   }
   const caption = (message.caption || "").trim();
-  const subjectMatch = caption.match(/(?:درس|موضوع)\s*[:：-]\s*([^\n،,;؛]+)/i) || caption.match(/^\[([^\]]+)\]/);
-  const subject = (subjectMatch?.[1] || "عمومی").trim().slice(0, 60) || "عمومی";
+  const subjectText = [caption, fileName.replace(/\.pdf$/i, "")].join(" ").toLowerCase();
+  const subjectAliases: Array<[string, string[]]> = [
+    ["فیزیک", ["فیزیک", "physics"]],
+    ["ریاضی", ["ریاضی", "ریاضیات", "math", "mathematics"]],
+    ["شیمی", ["شیمی", "chemistry"]],
+    ["زیست‌شناسی", ["زیست‌شناسی", "زیست شناسی", "زیست", "biology"]],
+    ["ادبیات", ["ادبیات", "فارسی", "literature"]],
+    ["زبان انگلیسی", ["زبان انگلیسی", "انگلیسی", "english"]],
+    ["عربی", ["عربی"]],
+    ["دینی", ["دینی", "دین و زندگی"]],
+  ];
+  const explicitSubject = caption.match(/(?:درس|موضوع)\s*[:：-]\s*([^\n،,;؛]+)/i)?.[1]
+    || caption.match(/^\[([^\]]+)\]/)?.[1]
+    || caption.match(/^(?:درس\s+)?([^\n،,;؛]+)$/i)?.[1];
+  const matchedSubject = subjectAliases.find(([, aliases]) => aliases.some(alias => subjectText.includes(alias)));
+  const subject = (explicitSubject?.trim() || matchedSubject?.[0] || "عمومی").slice(0, 60) || "عمومی";
   const saved = await StudyFile.findOneAndUpdate(
     { telegramFileUniqueId: doc.file_unique_id },
     { $set: {
