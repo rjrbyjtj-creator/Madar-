@@ -194,6 +194,7 @@ export async function generateGeminiReply(
     persona?: "balanced" | "friendly" | "buddy" | "witty";
     plannerContext?: string;
     availableFilesContext?: string;
+    articleWriterContext?: string;
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
   },
@@ -246,6 +247,7 @@ export async function generateGeminiReply(
     ].join("\n") : "",
     plannerInstruction,
     student.availableFilesContext ?? "",
+    student.articleWriterContext ?? "",
     personaInstructions[student.persona ?? "balanced"],
     student.name ? `نام دانش‌آموز: ${student.name}. فقط اگر طبیعی است از نام استفاده کن.` : "",
   ]
