@@ -18,12 +18,15 @@ function inferLegacySubject(caption: unknown, fileName: unknown): string {
     ["دینی", ["دینی", "دین و زندگی"]],
   ];
   const captionText = String(caption || "").trim();
-  const labeled = captionText.match(/(?:درس|موضوع)\s*[:：-]\s*([^\n،,;؛]+)/i)?.[1]
-    || captionText.match(/^\[([^\]]+)\]/)?.[1];
-  if (labeled?.trim()) return labeled.trim().slice(0, 60);
+  const labeledPrefix = ["درس:", "درس：", "درس-", "موضوع:", "موضوع：", "موضوع-"].find(prefix => captionText.startsWith(prefix));
+  const bracketedSubject = captionText.startsWith("[") ? captionText.slice(1).split("]")[0] : "";
+  const labeled = labeledPrefix
+    ? captionText.slice(labeledPrefix.length).split(/[\n،,;؛]/)[0]
+    : bracketedSubject;
+  if (labeled.trim()) return labeled.trim().slice(0, 60);
   const matched = subjects.find(([, aliases]) => aliases.some(alias => source.includes(alias)))?.[0];
   if (matched) return matched;
-  const plainCaption = captionText.replace(/^(?:درس\s+)/i, "").trim();
+  const plainCaption = (captionText.startsWith("درس ") ? captionText.slice(5) : captionText).trim();
   return plainCaption.length > 0 && plainCaption.length <= 60 ? plainCaption : "عمومی";
 }
 
