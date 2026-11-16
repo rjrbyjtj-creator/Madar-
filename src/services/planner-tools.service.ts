@@ -101,6 +101,7 @@ export async function executePlannerTool(
         plans: plans.map((day) => ({
           date: day.date,
           tasks: (day.tasks ?? []).map((task) => ({
+            id: task.id,
             title: task.title,
             type: task.type,
             start: task.start,
