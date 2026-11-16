@@ -6,6 +6,7 @@ import { Plan } from "../models/Plan.js";
 import { AppError } from "../utils/errors.js";
 import { generateGeminiReply, type GeminiMessage } from "../services/gemini.service.js";
 import { generateGroqReply } from "../services/groq.service.js";
+import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 
 const messageSchema = z.object({
   role: z.enum(["user", "model"]),
@@ -14,7 +15,8 @@ const messageSchema = z.object({
 
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
-  model: z.enum(["gemini", "groq", "grok"]).optional(),
+  model: z.enum(["gemini", "groq", "grok", "openrouter"]).optional(),
+  modelId: z.enum(OPENROUTER_MODEL_IDS).optional(),
   message: z.string().trim().min(1).max(2500).optional(),
   persona: z.enum(["balanced", "friendly", "buddy", "witty"]).optional(),
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -229,7 +231,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
-  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : "gemini";
+  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : "gemini";
   const aiMessages = [...history, { role: "user" as const, content: latestUserMessage }];
   const aiStudentContext = {
     name: user.name,
@@ -243,7 +245,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
     : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext)
-      : await generateGeminiReply(aiMessages, aiStudentContext);
+      : selectedProvider === "openrouter"
+        ? await generateOpenRouterReply(aiMessages, aiStudentContext, parsed.data.modelId ?? "nvidia/nemotron-3-ultra-550b-a55b:free")
+        : await generateGeminiReply(aiMessages, aiStudentContext);
 
   let reply = aiResult.text;
   let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
