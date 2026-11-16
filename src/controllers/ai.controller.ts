@@ -9,6 +9,7 @@ import { generateGeminiReply, GEMINI_MODEL_IDS, type GeminiMessage } from "../se
 import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
+import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
 
 const messageSchema = z.object({
   role: z.enum(["user", "model"]),
@@ -17,7 +18,7 @@ const messageSchema = z.object({
 
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
-  model: z.enum(["gemini", "groq", "grok", "openrouter", "cloudflare"]).optional(),
+  model: z.enum(["gemini", "groq", "grok", "openrouter", "cloudflare", "huggingface"]).optional(),
   modelId: z.string().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
   persona: z.enum(["balanced", "friendly", "buddy", "witty"]).optional(),
@@ -233,7 +234,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
-  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : "gemini";
+  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
   const aiMessages = [...history, { role: "user" as const, content: latestUserMessage }];
   const aiStudentContext = {
     name: user.name,
@@ -251,7 +252,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         ? await generateOpenRouterReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? "nvidia/nemotron-3-ultra-550b-a55b:free") as typeof OPENROUTER_MODEL_IDS[number])
         : selectedProvider === "cloudflare"
           ? await generateCloudflareReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
-          : await generateGeminiReply(
+          : selectedProvider === "huggingface"
+            ? await generateHuggingFaceReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
+            : await generateGeminiReply(
               aiMessages,
               aiStudentContext,
               (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number],
