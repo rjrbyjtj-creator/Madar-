@@ -35,7 +35,19 @@ async function handle(message: TgMessage): Promise<void> {
     // authenticated private-chat update, never from user-supplied text.
     const senderUsername = message.from?.username?.replace(/^@/, "").toLowerCase();
     if (!admin && message.from?.id && message.chat.id === message.from.id && senderUsername === "amir168shad") {
-      let account = await User.findOne({ telegramUsername: "amir168shad" }).select("_id name role telegramChatId").lean<TelegramAdminAccount>();
+      // The owner explicitly authorized promotion of the existing site account
+      // bound to this Telegram numeric ID. Promote only that exact active account.
+      let account = await User.findOne({ telegramChatId: chatId, isActive: true })
+        .select("_id name role telegramChatId").lean<TelegramAdminAccount>();
+      if (account && account.role !== "admin") {
+        await User.updateOne(
+          { _id: account._id, telegramChatId: chatId, isActive: true },
+          { $set: { role: "admin", telegramUsername: "amir168shad", isTelegramVerified: true } },
+        );
+        account = await User.findOne({ _id: account._id, telegramChatId: chatId, role: "admin", isActive: true })
+          .select("_id name role telegramChatId").lean<TelegramAdminAccount>();
+        console.info("[TELEGRAM_FILES] existing Telegram-linked account promoted to admin");
+      }
       if (!account) {
         const randomPassword = randomBytes(48).toString("hex");
         try {
