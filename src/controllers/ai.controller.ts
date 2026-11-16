@@ -228,7 +228,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
   const aiResult = exactTodayRead
-    ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined }
+    ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
     : await generateGeminiReply(
         [...history, { role: "user", content: latestUserMessage }],
         {
@@ -242,7 +242,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       );
 
   let reply = aiResult.text;
-  let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
+  let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;\n  const planDeletionProposal = aiResult.planDeletionProposal;
   const draftMatch = reply.match(/<MADAR_PLAN_DRAFT>([\s\S]*?)<\/MADAR_PLAN_DRAFT>/);
   if (draftMatch) {
     try {
@@ -274,7 +274,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   res.json({
     ok: true,
     reply,
-    ...(planProposal ? { planProposal } : {}),
+    ...(planProposal ? { planProposal } : {}),\n    ...(planDeletionProposal ? { planDeletionProposal } : {}),
     model: "gemini",
     conversationId,
     title,
