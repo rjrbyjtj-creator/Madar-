@@ -46,6 +46,14 @@ const userSchema = new Schema(
       index: true,
     },
 
+    schoolName: { type: String, trim: true, maxlength: 160 },
+
+    officialSchoolName: { type: String, trim: true, maxlength: 200 },
+
+    grade: { type: String, trim: true, maxlength: 40 },
+
+    fieldOfStudy: { type: String, trim: true, maxlength: 80 },
+
     role: {
       type: String,
       enum: ["student", "teacher", "admin"],
