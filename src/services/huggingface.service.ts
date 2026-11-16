@@ -86,6 +86,10 @@ export async function generateHuggingFaceReply(
     throw new AppError(503, "HUGGINGFACE_NOT_CONFIGURED", "کلید Hugging Face روی سرور تنظیم نشده است.");
   }
 
+  if (!HUGGINGFACE_MODEL_IDS.includes(modelId)) {
+    throw new AppError(400, "INVALID_HUGGINGFACE_MODEL", "مدل انتخاب‌شده Hugging Face معتبر نیست.");
+  }
+
   const normalized = [...messages];
   while (normalized.length && normalized[0].role !== "user") normalized.shift();
   if (!normalized.length) throw new AppError(400, "INVALID_CHAT_TURN", "پیام دانش‌آموز پیدا نشد.");
