@@ -174,7 +174,7 @@ async function callModel(
   const finalResult = extractText(response);
   return {
     ...finalResult,
-    text: finalResult.text || (proposal ? "پیش‌نویس برنامه آماده شد؛ لطفاً آن را بررسی و تأیید کن." : ""),
+    text: finalResult.text || (proposal ? "پیش‌نویس برنامه آماده شد؛ لطفاً آن را بررسی و تأیید کن." : deletionProposal ? "پیش‌نویس حذف آماده شد؛ لطفاً موارد را بررسی و تأیید کن." : ""),
     ...(proposal ? { planProposal: proposal } : {}),
     ...(deletionProposal ? { planDeletionProposal: deletionProposal } : {}),
   };
