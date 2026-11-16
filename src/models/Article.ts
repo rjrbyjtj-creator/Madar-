@@ -5,6 +5,7 @@ const articleSchema = new Schema({
   slug: { type: String, required: true, unique: true, trim: true, lowercase: true, maxlength: 100, match: /^[a-z0-9-]+$/ },
   title: { type: String, required: true, trim: true, maxlength: 180 },
   excerpt: { type: String, required: true, trim: true, maxlength: 500 },
+  content: { type: String, default: "", trim: true, maxlength: 40000 },
   category: { type: String, default: "آموزش و یادگیری", trim: true, maxlength: 80 },
   readTime: { type: Number, default: 5, min: 1, max: 120 },
   coverImage: { type: String, default: "", trim: true, maxlength: 600 },
