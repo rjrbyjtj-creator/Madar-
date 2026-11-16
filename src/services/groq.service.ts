@@ -8,6 +8,13 @@ import {
   type PlannerDeletionProposal,
 } from "./planner-tools.service.js";
 
+export const GROQ_MODEL_IDS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+] as const;
+
 export type GroqMessage = {
   role: "user" | "model";
   content: string;
@@ -71,10 +78,13 @@ export async function generateGroqReply(
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
   },
+  modelId: typeof GROQ_MODEL_IDS[number] = env.GROQ_MODEL as typeof GROQ_MODEL_IDS[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   if (!env.GROQ_API_KEY) {
     throw new AppError(503, "GROQ_NOT_CONFIGURED", "کلید سرویس Groq روی سرور تنظیم نشده است.");
   }
+
+  if (!GROQ_MODEL_IDS.includes(modelId)) throw new AppError(400, "INVALID_GROQ_MODEL", "مدل انتخاب‌شده Groq معتبر نیست.");
 
   const normalized = [...messages];
   while (normalized.length && normalized[0].role !== "user") normalized.shift();
@@ -123,7 +133,7 @@ export async function generateGroqReply(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: env.GROQ_MODEL,
+          model: modelId,
           messages: chatMessages,
           temperature: 0.6,
           max_completion_tokens: 2048,
