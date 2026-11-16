@@ -19,6 +19,10 @@ const proposalSchema = z.object({
 
 export type PlannerProposal = z.infer<typeof proposalSchema>;
 
+export type PlannerDeletionProposal = {
+  items: Array<{ date: string; taskId: string; title: string; start: string; end: string }>;
+};
+
 export const plannerToolDeclarations = [
   {
     name: "get_my_plans",
@@ -71,7 +75,7 @@ export async function executePlannerTool(
   name: string,
   args: unknown,
   userId: mongoose.Types.ObjectId,
-): Promise<{ result: Record<string, unknown>; proposal?: PlannerProposal }> {
+): Promise<{ result: Record<string, unknown>; proposal?: PlannerProposal; deletionProposal?: PlannerDeletionProposal }> {
   if (name === "get_my_plans") {
     const parsed = z.object({
       from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -111,6 +115,46 @@ export async function executePlannerTool(
           note: day.note || "",
         })),
       },
+    };
+  }
+
+  if (name === "propose_delete_plans") {
+    const parsed = z.object({
+      items: z.array(z.object({
+        date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+        taskId: z.string().trim().min(1).max(64),
+      })).min(1).max(30),
+    }).safeParse(args);
+    if (!parsed.success || parsed.data.items.some((item) => !validDate(item.date))) {
+      return { result: { ok: false, error: "فهرست فعالیت‌های درخواستی برای حذف معتبر نیست." } };
+    }
+    const unique = new Set(parsed.data.items.map((item) => item.date + "|" + item.taskId));
+    if (unique.size !== parsed.data.items.length) {
+      return { result: { ok: false, error: "یک فعالیت در فهرست حذف تکرار شده است." } };
+    }
+    const verified: PlannerDeletionProposal["items"] = [];
+    for (const item of parsed.data.items) {
+      const day = await Plan.findOne({ user: userId, date: item.date }).select("date tasks").lean();
+      const task = day?.tasks?.find((entry) => entry.id === item.taskId);
+      if (!task) {
+        return { result: { ok: false, error: "یکی از فعالیت‌ها دیگر در برنامه ذخیره‌شده پیدا نمی‌شود. دوباره برنامه را بخوان." } };
+      }
+      verified.push({
+        date: item.date,
+        taskId: task.id,
+        title: task.title,
+        start: task.start,
+        end: task.end,
+      });
+    }
+    return {
+      result: {
+        ok: true,
+        message: "پیش‌نویس حذف آماده شد؛ هنوز هیچ فعالیتی حذف نشده و باید تأیید دانش‌آموز گرفته شود.",
+        itemCount: verified.length,
+        items: verified,
+      },
+      deletionProposal: { items: verified },
     };
   }
 
