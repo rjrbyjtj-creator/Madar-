@@ -4,14 +4,27 @@ import { StudyFile } from "../models/StudyFile.js";
 import { getTelegramFileStream } from "../services/telegram-files.service.js";
 import { AppError } from "../utils/errors.js";
 
-export async function listStudyFiles(_req: Request, res: Response): Promise<void> {
-  const files = await StudyFile.find({ isActive: true })
-    .select("_id fileName mimeType fileSize caption uploadedByName createdAt")
+export async function listStudyFiles(req: Request, res: Response): Promise<void> {
+  const q = String(req.query.q || "").trim().slice(0, 120);
+  const subject = String(req.query.subject || "").trim().slice(0, 60);
+  const filter: Record<string, unknown> = { isActive: true };
+  if (subject && subject !== "همه") filter.subject = subject;
+  if (q) {
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.$or = [
+      { fileName: { $regex: escaped, $options: "i" } },
+      { caption: { $regex: escaped, $options: "i" } },
+      { subject: { $regex: escaped, $options: "i" } },
+    ];
+  }
+  const files = await StudyFile.find(filter)
+    .select("_id fileName mimeType fileSize caption subject uploadedByName createdAt")
     .sort({ createdAt: -1 }).limit(300).lean();
   res.json({ ok: true, files: files.map(f => ({
     id: String(f._id), name: f.fileName, mimeType: f.mimeType,
-    size: f.fileSize, caption: f.caption, uploadedBy: f.uploadedByName,
-    createdAt: f.createdAt, contentUrl: `/api/study-files/${f._id}/content`,
+    size: f.fileSize, caption: f.caption, subject: f.subject || "عمومی",
+    uploadedBy: f.uploadedByName, createdAt: f.createdAt,
+    contentUrl: `/api/study-files/${f._id}/content`,
   })) });
 }
 
@@ -21,8 +34,9 @@ export async function streamStudyFile(req: Request, res: Response): Promise<void
   const file = await StudyFile.findOne({ _id: id, isActive: true }).select("telegramFileId fileName mimeType");
   if (!file) throw new AppError(404, "FILE_NOT_FOUND", "فایل پیدا نشد.");
   const { response } = await getTelegramFileStream(file.telegramFileId);
+  const disposition = req.query.download === "1" ? "attachment" : "inline";
   res.setHeader("Content-Type", file.mimeType || "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
+  res.setHeader("Content-Disposition", `${disposition}; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   const { Readable } = await import("node:stream");
