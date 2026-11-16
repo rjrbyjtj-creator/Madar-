@@ -53,7 +53,7 @@ function statusOf(error: unknown): number {
 
 function errorText(error: unknown): string {
   const message = error instanceof Error ? error.message : "Unknown Cloudflare Workers AI error";
-  return (env.CLOUDFLARE_API_TOKEN ? message.split(env.CLOUDFLARE_API_KEY).join("[REDACTED]") : message)
+  return (env.CLOUDFLARE_API_TOKEN ? message.split(env.CLOUDFLARE_API_TOKEN).join("[REDACTED]") : message)
     .replace(/[\r\n\t]+/g, " ")
     .slice(0, 500);
 }
@@ -81,7 +81,7 @@ export async function generateCloudflareReply(
   },
   modelId: typeof CLOUDFLARE_MODEL_IDS[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
-  if (!env.CLOUDFLARE_API_KEY) {
+  if (!env.CLOUDFLARE_API_TOKEN) {
     throw new AppError(503, "CLOUDFLARE_NOT_CONFIGURED", "کلید API یا شناسه حساب Cloudflare روی سرور تنظیم نشده است.");
   }
 
@@ -130,7 +130,7 @@ export async function generateCloudflareReply(
       const response = await fetch("https://api.cloudflare.com/client/v4/accounts/" + env.CLOUDFLARE_ACCOUNT_ID + "/ai/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + env.CLOUDFLARE_API_KEY,
+          "Authorization": "Bearer " + env.CLOUDFLARE_API_TOKEN,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
