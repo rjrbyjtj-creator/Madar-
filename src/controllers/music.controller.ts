@@ -19,7 +19,7 @@ export async function streamMusic(req:Request,res:Response):Promise<void>{
  const total=audio.length;let status=200,start=0,end=total-1;
  const range=req.headers.range;
  if(range){
-   const m=/^bytes=(\\d*)-(\\d*)$/.exec(range.trim());
+   const m=/^bytes=(\d*)-(\d*)$/.exec(range.trim());
    if(!m||(!m[1]&&!m[2])){res.status(416).setHeader("Content-Range","bytes */"+total).end();return;}
    if(!m[1]){const suffix=Number(m[2]);if(!Number.isFinite(suffix)||suffix<=0){res.status(416).setHeader("Content-Range","bytes */"+total).end();return;}start=Math.max(0,total-suffix);}
    else{start=Number(m[1]);if(m[2])end=Number(m[2]);}
