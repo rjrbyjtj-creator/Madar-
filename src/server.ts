@@ -8,7 +8,7 @@ import { seedDefaultThemes } from "./services/theme.service.js";
 import { seedDefaultArticles } from "./services/articles.service.js";
 import { initializeMusicStore } from "./services/music-store.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
-import { startTelegramFilesBot, stopTelegramFilesBot } from "./services/telegram-files.service.js";
+import { startTelegramFilesBot, stopTelegramFilesBot, migrateLegacyMusicAudioToTurso } from "./services/telegram-files.service.js";
 import { logger } from "./utils/logger.js";
 
 let shuttingDown = false;
@@ -42,6 +42,7 @@ async function startServer(): Promise<void> {
     const server = createApp().listen(env.PORT, () => {
       logger.info(`Server running on http://localhost:${env.PORT}`);
     });
+    void migrateLegacyMusicAudioToTurso().catch(error => console.error("[MUSIC_MIGRATION] Background migration failed:", error instanceof Error ? error.message : error));
 
     process.on("SIGINT", () => void shutdown("SIGINT", server));
     process.on("SIGTERM", () => void shutdown("SIGTERM", server));
