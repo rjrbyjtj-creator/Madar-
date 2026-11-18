@@ -9,6 +9,7 @@ import { articlesRouter } from "./articles.routes.js";
 import { studyFilesRouter } from "./study-files.routes.js";
 import { examsRouter } from "./exams.routes.js";
 import { academicHistoryRouter } from "./academic-history.routes.js";
+import { musicRouter } from "./music.routes.js";
 
 export const apiRouter = Router();
 
@@ -20,6 +21,7 @@ apiRouter.use("/academic-history", academicHistoryRouter);
 apiRouter.use("/exams", examsRouter);
 apiRouter.use("/articles", articlesRouter);
 apiRouter.use("/study-files", studyFilesRouter);
+apiRouter.use("/music", musicRouter);
 apiRouter.use("/ai", aiRouter);
 /** Theme API — mounted under /api/themes; /active is public, management routes require admin. */
 apiRouter.use("/themes", themeRouter);
