@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
-import { PasswordResetChallenge } from "../models/PasswordResetChallenge.js";
+import { PasswordResetChallenge } from "../models/ResetChallenge.js";
 import { TelegramContact } from "../models/TelegramContact.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/errors.js";
@@ -11,6 +11,9 @@ import { sendEmailCode } from "./email.service.js";
 import { sendTelegramCode, TelegramApiError } from "./telegram.service.js";
 import { botLabel } from "./telegramChat.service.js";
 import { toPublicUser, type PublicUser } from "./auth.service.js";
+
+// Isolate a Mongoose 9 inferred-query typing limitation while retaining the schema/model at runtime.
+const ResetChallenge: any = PasswordResetChallenge;
 
 type Channel = "email" | "telegram";
 type Account = {
@@ -114,7 +117,7 @@ export async function requestPasswordReset(input: {
   }
 
   const now = new Date();
-  const previous = await PasswordResetChallenge.findOne({
+  const previous = await ResetChallenge.findOne({
     userId: user._id, channel: input.channel, consumedAt: null,
   }).sort({ issuedAt: -1 }).select("issuedAt").lean();
 
@@ -126,13 +129,13 @@ export async function requestPasswordReset(input: {
     }
   }
 
-  await PasswordResetChallenge.updateMany(
+  await ResetChallenge.updateMany(
     { userId: user._id, channel: input.channel, consumedAt: null },
     { $set: { consumedAt: now } },
   );
 
   const code = String(randomInt(100_000, 1_000_000));
-  const challenge = await PasswordResetChallenge.create({
+  const challenge = await ResetChallenge.create({
     userId: user._id,
     channel: input.channel,
     codeHash: codeHash(String(user._id), input.channel, code),
@@ -144,7 +147,7 @@ export async function requestPasswordReset(input: {
   try {
     await deliver(input.channel, user, code);
   } catch (error) {
-    await PasswordResetChallenge.deleteOne({ _id: challenge._id });
+    await ResetChallenge.deleteOne({ _id: challenge._id });
     throw error;
   }
 
@@ -164,7 +167,7 @@ export async function verifyPasswordResetCode(input: {
   }
 
   const now = new Date();
-  const candidate = await PasswordResetChallenge.findOne({
+  const candidate = await ResetChallenge.findOne({
     userId: user._id, channel: input.channel, consumedAt: null,
     verifiedAt: null, codeExpiresAt: { $gt: now },
   }).sort({ issuedAt: -1 }).select("+codeHash attempts");
@@ -173,7 +176,7 @@ export async function verifyPasswordResetCode(input: {
     throw new AppError(400, "OTP_NOT_FOUND", "کدی برای این حساب فعال نیست یا منقضی شده. کد جدید بگیر.");
   }
 
-  const attempt = await PasswordResetChallenge.findOneAndUpdate(
+  const attempt = await ResetChallenge.findOneAndUpdate(
     { _id: candidate._id, consumedAt: null, verifiedAt: null, attempts: { $lt: MAX_ATTEMPTS } },
     { $inc: { attempts: 1 } },
     { new: true },
@@ -190,7 +193,7 @@ export async function verifyPasswordResetCode(input: {
   }
 
   const resetToken = randomBytes(32).toString("base64url");
-  const updated = await PasswordResetChallenge.updateOne(
+  const updated = await ResetChallenge.updateOne(
     { _id: attempt._id, verifiedAt: null, consumedAt: null },
     { $set: {
       verifiedAt: now,
@@ -215,7 +218,7 @@ export async function completePasswordReset(input: {
   }
 
   const now = new Date();
-  const challenge = await PasswordResetChallenge.findOne({
+  const challenge = await ResetChallenge.findOne({
     userId: user._id,
     channel: input.channel,
     verifiedAt: { $ne: null },
@@ -228,7 +231,7 @@ export async function completePasswordReset(input: {
   }
 
   const passwordHash = await hashPassword(input.newPassword);
-  const consumed = await PasswordResetChallenge.updateOne(
+  const consumed = await ResetChallenge.updateOne(
     { _id: challenge._id, consumedAt: null, resetTokenHash: challenge.resetTokenHash, resetTokenExpiresAt: { $gt: new Date() } },
     { $set: { consumedAt: new Date() } },
   );
