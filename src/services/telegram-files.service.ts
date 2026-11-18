@@ -208,10 +208,13 @@ export function startTelegramFilesBot(): void {
 }
 export async function stopTelegramFilesBot(): Promise<void> { running = false; await task; }
 
-export async function getTelegramFileStream(fileId: string): Promise<{ response: Response; fileName: string }> {
+export async function getTelegramFileStream(fileId: string, range?: string): Promise<{ response: Response; fileName: string }> {
   const info = await api<{ file_path?: string }>("getFile", { file_id: fileId });
   if (!info.file_path) throw new Error("Telegram did not return a file path");
-  const response = await fetch(`https://api.telegram.org/file/bot${token()}/${info.file_path}`, { signal: AbortSignal.timeout(60_000) });
-  if (!response.ok || !response.body) throw new Error("Could not download file from Telegram");
-  return { response, fileName: info.file_path.split("/").pop() || "file.pdf" };
+  const response = await fetch(`https://api.telegram.org/file/bot${token()}/${info.file_path}`, {
+    headers: range ? { Range: range } : undefined,
+    signal: AbortSignal.timeout(60_000),
+  });
+  if ((!response.ok && response.status !== 206) || !response.body) throw new Error("Could not download file from Telegram");
+  return { response, fileName: info.file_path.split("/").pop() || "file.bin" };
 }
