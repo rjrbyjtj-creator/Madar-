@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { env } from "../config/env.js";
 
@@ -6,6 +7,11 @@ const HOP_HEADER = "x-madar-gateway-hop";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 let peerHealthCheckedAt = 0;
 let peerIsHealthy = false;
+let peerHealthPromise: Promise<boolean> | null = null;
+const clusterFingerprint = createHash("sha256")
+  .update(env.MONGODB_URI + "|" + env.JWT_SECRET)
+  .digest("hex")
+  .slice(0, 16);
 
 function forcedBackend(path: string, body: any): "railway" | "render" | null {
   if (path === "/auth/forgot-password/send-code" || path === "/auth/forgot-password/reset") {
@@ -23,20 +29,39 @@ function forcedBackend(path: string, body: any): "railway" | "render" | null {
 async function checkPeerHealth(): Promise<boolean> {
   const now = Date.now();
   if (now - peerHealthCheckedAt < 5000) return peerIsHealthy;
-  peerHealthCheckedAt = now;
+  if (peerHealthPromise) return peerHealthPromise;
 
-  try {
-    const response = await fetch(new URL("/health", env.PEER_BACKEND_URL), {
-      method: "GET",
-      signal: AbortSignal.timeout(1800),
-      cache: "no-store",
-    });
-    peerIsHealthy = response.ok;
-  } catch {
-    peerIsHealthy = false;
-  }
+  peerHealthPromise = (async () => {
+    try {
+      const response = await fetch(new URL("/health", env.PEER_BACKEND_URL), {
+        method: "GET",
+        signal: AbortSignal.timeout(3500),
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        peerIsHealthy = false;
+        return false;
+      }
 
-  return peerIsHealthy;
+      const health = await response.json() as {
+        role?: string;
+        clusterFingerprint?: string;
+      };
+      const expectedRole = env.BACKEND_ROLE === "railway" ? "render" : "railway";
+      peerIsHealthy =
+        health.role === expectedRole &&
+        health.clusterFingerprint === clusterFingerprint;
+      return peerIsHealthy;
+    } catch {
+      peerIsHealthy = false;
+      return false;
+    } finally {
+      peerHealthCheckedAt = Date.now();
+      peerHealthPromise = null;
+    }
+  })();
+
+  return peerHealthPromise;
 }
 
 function requestHeaders(req: Request): Headers {
