@@ -9,19 +9,29 @@ import { requestLogger } from "./middlewares/requestLogger.js";
 import { loadBalancerProxy } from "./middlewares/loadBalancer.js";
 import { apiRouter } from "./routes/index.js";
 
-const LOCAL_ORIGIN = /^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?$/;
 const EXTRA_ORIGINS = ["https://rjrbyjtj-creator.github.io"];
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function isAllowedOrigin(origin: string): boolean {
   if (EXTRA_ORIGINS.includes(origin)) return true;
   if (env.clientOrigins.includes(origin)) return true;
-  return !env.isProduction && (origin === "null" || LOCAL_ORIGIN.test(origin));
+  if (env.isProduction) return false;
+  if (origin === "null") return true;
+
+  try {
+    const url = new URL(origin);
+    return (url.protocol === "http:" || url.protocol === "https:") && LOCAL_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
+// Short, non-reversible fingerprint used only to confirm that both nodes share
+// the same database and JWT signing secret; the underlying values are never exposed.
 const clusterFingerprint = createHash("sha256")
-  .update(`${env.MONGODB_URI}\\0${env.JWT_SECRET}`)
+  .update(env.MONGODB_URI + "|" + env.JWT_SECRET)
   .digest("hex")
-  .slice(0, 12);
+  .slice(0, 16);
 
 export function createApp() {
   const app = express();
