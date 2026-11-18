@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { User } from "../models/User.js";
 import { StudyFile } from "../models/StudyFile.js";
-import { saveMusicTrack } from "./music-store.service.js";
+import { saveMusicTrack, saveMusicAudioFile } from "./music-store.service.js";
 import { hashPassword } from "../utils/security.js";
 
 type TgResponse<T> = { ok: boolean; result?: T; description?: string };
@@ -122,6 +122,10 @@ async function handle(message: TgMessage): Promise<void> {
         uploadedByName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" "),
         telegramMessageId: message.message_id,
       });
+      const downloaded = await getTelegramFileStream(audioMedia.file_id);
+      const audioBytes = Buffer.from(await downloaded.response.arrayBuffer());
+      if (audioBytes.length !== size) throw new Error("Downloaded audio size does not match Telegram metadata");
+      await saveMusicAudioFile(saved.id, audioBytes);
       await reply(message.chat.id, "🎵 آهنگ با موفقیت در پایگاه داده موسیقی مدار ثبت شد.\n\n🎧 " + saved.title + "\n👤 " + saved.artist + "\n⏱ " + Math.floor(saved.duration/60) + ":" + String(saved.duration%60).padStart(2,"0") + "\n📦 " + Math.ceil(saved.fileSize/1024) + " کیلوبایت\n\nدر فهرست آهنگ‌های سایت نمایش داده می‌شود.");
     } catch (error) {
       console.error("[TELEGRAM_FILES] music save failed:", error instanceof Error ? error.message : error);
