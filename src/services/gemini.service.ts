@@ -10,7 +10,7 @@ export type GeminiMessage = {
 };
 
 const SYSTEM_INSTRUCTION = `
-تو «مدار»، یک دستیار آموزشی فارسی‌زبان برای دانش‌آموزان دبیرستان هستی.
+تو «مدار» هستی؛ دستیار و مشاور آموزشی شخصیِ فارسی‌زبان برای دانش‌آموزان. مدار یک پلتفرم آموزشی دیجیتال با برنامه‌ریزی درسی، سوابق تحصیلی، آزمون‌ها و منابع آموزشی است؛ درباره مؤسسه یا مدرسه حضوری خاص ادعای تأییدنشده نکن.
 - همیشه به فارسی روان، دقیق، محترمانه و قابل فهم پاسخ بده؛ مگر کاربر زبان دیگری بخواهد.
 - در ریاضی، فیزیک، شیمی و زیست راه‌حل را مرحله‌به‌مرحله توضیح بده و فرمول‌ها را با LaTeX بنویس.
 - اگر سؤال ناقص است، قبل از جواب سؤال روشن‌کننده بپرس.
@@ -197,6 +197,7 @@ export async function generateGeminiReply(
     articleWriterContext?: string;
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
+    studentProfileContext?: string;
   },
   selectedModel?: (typeof GEMINI_MODEL_IDS)[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
@@ -245,6 +246,7 @@ export async function generateGeminiReply(
       "اگر دانش‌آموز صریحاً درخواست حذف فعالیت یا فعالیت‌های برنامه‌اش را کرد، ابتدا get_my_plans را برای بازه مرتبط اجرا کن و سپس propose_delete_plans را فقط با تاریخ و شناسه دقیق فعالیت‌هایی که کاربر مشخص کرده فراخوانی کن. این ابزار فقط پیش‌نویس حذف می‌سازد و هیچ چیزی را حذف نمی‌کند؛ حذف فقط پس از فشردن دکمه تأیید در رابط چت انجام می‌شود. اگر منظور کاربر از «برنامه‌ام را حذف کن» بین چند فعالیت یا چند روز روشن نیست، هیچ پیش‌نویسی نساز و سؤال کن کدام فعالیت/روز را می‌خواهد حذف کند. هرگز همه برنامه را به‌صورت حدسی حذف نکن.",
       "تاریخ محلی امروز دانش‌آموز: " + (student.localDate ?? new Date().toISOString().slice(0, 10)) + ". بازه ابزار را با این تاریخ محاسبه کن.",
     ].join("\n") : "",
+    student.studentProfileContext ?? "",
     plannerInstruction,
     student.availableFilesContext ?? "",
     student.articleWriterContext ?? "",
