@@ -29,7 +29,7 @@ function isAllowedOrigin(origin: string): boolean {
 // Short, non-reversible fingerprint used only to confirm that both nodes share
 // the same database and JWT signing secret; the underlying values are never exposed.
 const clusterFingerprint = createHash("sha256")
-  .update(env.MONGODB_URI + "|" + env.JWT_SECRET)
+  .update(env.MONGODB_URI + "|" + env.TURSO_DATABASE_URL + "|" + env.JWT_SECRET)
   .digest("hex")
   .slice(0, 16);
 
