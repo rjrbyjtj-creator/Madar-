@@ -9,7 +9,7 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const grade = z.object({
   id, subject: z.string().trim().min(1).max(60),
   source: z.enum(["school", "maz", "ghalamchi"]),
-  score: z.number().min(0).max(100), date: z.string().regex(/^$|^\d{4}-\d{2}-\d{2}$/).default(""),
+  score: z.number().min(0).max(10000), outOf: z.number().min(0.01).max(10000).default(100), date: z.string().regex(/^$|^\d{4}-\d{2}-\d{2}$/).default(""),
 });
 const test = z.object({
   id, title: z.string().trim().min(1).max(120),
