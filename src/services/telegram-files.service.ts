@@ -114,14 +114,19 @@ async function handle(message: TgMessage): Promise<void> {
     const artist = (audioMedia.performer || field("خواننده") || "نامشخص").trim().slice(0, 120);
     const album = field("آلبوم").slice(0, 120);
     const category = (field("دسته") || field("سبک") || "عمومی").slice(0, 60);
-    const saved = await saveMusicTrack({
-      telegramFileId: audioMedia.file_id, telegramFileUniqueId: audioMedia.file_unique_id,
-      title, artist, album, category, duration, fileName, mimeType, fileSize: size, caption,
-      uploadedByChatId: chatId,
-      uploadedByName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" "),
-      telegramMessageId: message.message_id,
-    });
-    await reply(message.chat.id, "🎵 آهنگ با موفقیت در پایگاه داده موسیقی مدار ثبت شد.\n\n🎧 " + saved.title + "\n👤 " + saved.artist + "\n⏱ " + Math.floor(saved.duration/60) + ":" + String(saved.duration%60).padStart(2,"0") + "\n📦 " + Math.ceil(saved.fileSize/1024) + " کیلوبایت\n\nدر فهرست آهنگ‌های سایت نمایش داده می‌شود.");
+    try {
+      const saved = await saveMusicTrack({
+        telegramFileId: audioMedia.file_id, telegramFileUniqueId: audioMedia.file_unique_id,
+        title, artist, album, category, duration, fileName, mimeType, fileSize: size, caption,
+        uploadedByChatId: chatId,
+        uploadedByName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" "),
+        telegramMessageId: message.message_id,
+      });
+      await reply(message.chat.id, "🎵 آهنگ با موفقیت در پایگاه داده موسیقی مدار ثبت شد.\n\n🎧 " + saved.title + "\n👤 " + saved.artist + "\n⏱ " + Math.floor(saved.duration/60) + ":" + String(saved.duration%60).padStart(2,"0") + "\n📦 " + Math.ceil(saved.fileSize/1024) + " کیلوبایت\n\nدر فهرست آهنگ‌های سایت نمایش داده می‌شود.");
+    } catch (error) {
+      console.error("[TELEGRAM_FILES] music save failed:", error instanceof Error ? error.message : error);
+      await reply(message.chat.id, "⛔️ ثبت آهنگ انجام نشد. اتصال دیتابیس Turso بخش موسیقی را بررسی کن و دوباره بفرست.");
+    }
     return;
   }
   if (!doc) {
