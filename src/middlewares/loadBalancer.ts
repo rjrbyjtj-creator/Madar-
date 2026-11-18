@@ -9,7 +9,7 @@ let peerIsHealthy = false;
 
 function forcedBackend(path: string, body: any): "railway" | "render" | null {
   if (path === "/auth/forgot-password/send-code" || path === "/auth/forgot-password/reset") {
-    return "railway";
+    return "render";
   }
 
   if (path === "/auth/register/send-code" || path === "/auth/register/verify") {
@@ -71,7 +71,6 @@ export async function loadBalancerProxy(
 
   const path = req.originalUrl.split("?")[0].replace(/^\/api(?=\/|$)/, "") || "/";
   const forced = forcedBackend(path, req.body);
-  const peerRole = env.BACKEND_ROLE === "railway" ? "render" : "railway";
   const shouldForward = forced
     ? forced !== env.BACKEND_ROLE
     : Math.random() < 0.5;
