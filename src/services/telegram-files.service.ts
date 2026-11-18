@@ -90,7 +90,7 @@ async function handle(message: TgMessage): Promise<void> {
     return;
   }
   const doc = message.document;
-  const audioExtensions = /\\.(mp3|m4a|aac|ogg|oga|wav|flac|opus)$/i;
+  const audioExtensions = /\.(mp3|m4a|aac|ogg|oga|wav|flac|opus)$/i;
   const audioMedia = message.audio || (doc && ((doc.mime_type || "").startsWith("audio/") || audioExtensions.test(doc.file_name || "")) ? doc as TgAudio : undefined);
   if (audioMedia) {
     const fileName = (audioMedia.file_name || audioMedia.title || "track.mp3").trim().slice(0, 240);
@@ -110,7 +110,7 @@ async function handle(message: TgMessage): Promise<void> {
       const match = caption.match(new RegExp("(?:^|\\n)" + key + "\\s*[:：-]\\s*([^\\n]+)", "i"));
       return match?.[1]?.trim() || "";
     };
-    const title = (audioMedia.title || field("عنوان") || caption.split("\\n")[0] || fileName.replace(audioExtensions, "")).trim().slice(0, 180) || "آهنگ جدید";
+    const title = (audioMedia.title || field("عنوان") || caption.split("\n")[0] || fileName.replace(audioExtensions, "")).trim().slice(0, 180) || "آهنگ جدید";
     const artist = (audioMedia.performer || field("خواننده") || "نامشخص").trim().slice(0, 120);
     const album = field("آلبوم").slice(0, 120);
     const category = (field("دسته") || field("سبک") || "عمومی").slice(0, 60);
@@ -125,7 +125,7 @@ async function handle(message: TgMessage): Promise<void> {
       } },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
-    await reply(message.chat.id, `🎵 آهنگ با موفقیت به کتابخانه موسیقی مدار اضافه شد.\\n\\n🎧 ${saved.title}\\n👤 ${saved.artist}\\n⏱ ${Math.floor(saved.duration / 60)}:${String(saved.duration % 60).padStart(2, "0")}\\n📦 ${Math.ceil(saved.fileSize / 1024)} کیلوبایت\\n\\nدر فهرست آهنگ‌های سایت نمایش داده می‌شود.`);
+    await reply(message.chat.id, `🎵 آهنگ با موفقیت به کتابخانه موسیقی مدار اضافه شد.\n\n🎧 ${saved.title}\n👤 ${saved.artist}\n⏱ ${Math.floor(saved.duration / 60)}:${String(saved.duration % 60).padStart(2, "0")}\n📦 ${Math.ceil(saved.fileSize / 1024)} کیلوبایت\n\nدر فهرست آهنگ‌های سایت نمایش داده می‌شود.`);
     return;
   }
   if (!doc) {
