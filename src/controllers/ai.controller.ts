@@ -356,7 +356,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ? await buildStudyFilesContext()
     : undefined;
   const textbookContext = await retrieveTextbookContext(latestUserMessage);
-  const availableFilesContext = [studyFilesContext, textbookContext].filter(Boolean).join("\\n\\n") || undefined;
+  const availableFilesContext = [studyFilesContext, textbookContext].filter(Boolean).join("\n\n") || undefined;
   const plannerContext = plannerRelevant
     ? [
         await buildPlannerContext(user._id, parsed.data.localDate),
