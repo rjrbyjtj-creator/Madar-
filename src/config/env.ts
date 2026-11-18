@@ -48,6 +48,6 @@ export const env = {
   GEMINI_MODEL,
   isProduction: data.NODE_ENV === "production",
   clientOrigins: data.CLIENT_URL.split(",")
-    .map((origin) => origin.trim().replace(/\\/+$/, ""))
+    .map((origin) => { let value = origin.trim(); while (value.endsWith("/")) value = value.slice(0, -1); return value; })
     .filter(Boolean),
 };
