@@ -8,6 +8,7 @@ import { plansRouter } from "./plans.routes.js";
 import { articlesRouter } from "./articles.routes.js";
 import { studyFilesRouter } from "./study-files.routes.js";
 import { examsRouter } from "./exams.routes.js";
+import { academicHistoryRouter } from "./academic-history.routes.js";
 
 export const apiRouter = Router();
 
@@ -15,6 +16,7 @@ apiRouter.use("/auth", authRouter);
 apiRouter.use("/admin", adminRouter);
 apiRouter.use("/users", userRouter);
 apiRouter.use("/plans", plansRouter);
+apiRouter.use("/academic-history", academicHistoryRouter);
 apiRouter.use("/exams", examsRouter);
 apiRouter.use("/articles", articlesRouter);
 apiRouter.use("/study-files", studyFilesRouter);
