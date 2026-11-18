@@ -5,11 +5,11 @@ import { StudentAcademicHistory } from "../models/StudentAcademicHistory.js";
 import { AppError } from "../utils/errors.js";
 
 const id = z.string().trim().min(1).max(64);
-const date = z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/);
+const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const grade = z.object({
   id, subject: z.string().trim().min(1).max(60),
   source: z.enum(["school", "maz", "ghalamchi"]),
-  score: z.number().min(0).max(100), date: z.string().regex(/^$|^\\d{4}-\\d{2}-\\d{2}$/).default(""),
+  score: z.number().min(0).max(100), date: z.string().regex(/^$|^\d{4}-\d{2}-\d{2}$/).default(""),
 });
 const test = z.object({
   id, title: z.string().trim().min(1).max(120),
