@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { User } from "../models/User.js";
 import { StudyFile } from "../models/StudyFile.js";
-import { saveMusicTrack, saveMusicAudioFile } from "./music-store.service.js";
+import { saveMusicTrack, saveMusicAudioFile, getMusicAudioFile, listMusicTracks } from "./music-store.service.js";
 import { hashPassword } from "../utils/security.js";
 
 type TgResponse<T> = { ok: boolean; result?: T; description?: string };
@@ -222,4 +222,24 @@ export async function getTelegramFileStream(fileId: string, range?: string): Pro
   });
   if ((!response.ok && response.status !== 206) || !response.body) throw new Error("Could not download file from Telegram");
   return { response, fileName: info.file_path.split("/").pop() || "file.bin" };
+}
+
+
+// One-time background copy of legacy Telegram-hosted tracks into Turso.
+export async function migrateLegacyMusicAudioToTurso():Promise<void>{
+ if(!token())return;
+ let tracks;
+ try{tracks=await listMusicTracks("","همه");}
+ catch(error){console.error("[MUSIC_MIGRATION] Could not list legacy tracks:",error instanceof Error?error.message:error);return;}
+ let migrated=0,skipped=0,failed=0;
+ for(const track of tracks){
+   try{
+     if(await getMusicAudioFile(track.id)){skipped++;continue;}
+     const {response}=await getTelegramFileStream(track.telegramFileId);
+     const bytes=Buffer.from(await response.arrayBuffer());
+     if(bytes.length!==track.fileSize||bytes.length<1||bytes.length>20*1024*1024)throw new Error("Legacy audio size is invalid or exceeds the supported 20 MB limit");
+     await saveMusicAudioFile(track.id,bytes);migrated++;
+   }catch(error){failed++;console.error("[MUSIC_MIGRATION] Track copy failed:",track.id,error instanceof Error?error.message:error);}
+ }
+ console.info("[MUSIC_MIGRATION] Legacy audio copy finished:",{total:tracks.length,migrated,alreadyStored:skipped,failed});
 }
