@@ -47,13 +47,13 @@ async function findAccount(rawIdentifier: string): Promise<Account | null> {
 
   if (EMAIL_RE.test(value)) {
     return await User.findOne({ email: value.toLowerCase() })
-      .select("name email phone role isActive isEmailVerified isTelegramVerified telegramChatId telegramUsername") as unknown as Account | null;
+      .select("name email phone role isActive isEmailVerified isTelegramVerified telegramChatId telegramUsername schoolName officialSchoolName grade fieldOfStudy createdAt") as unknown as Account | null;
   }
 
   const phone = normalizePhone(value);
   if (phone) {
     return await User.findOne({ phone })
-      .select("name email phone role isActive isEmailVerified isTelegramVerified telegramChatId telegramUsername") as unknown as Account | null;
+      .select("name email phone role isActive isEmailVerified isTelegramVerified telegramChatId telegramUsername schoolName officialSchoolName grade fieldOfStudy createdAt") as unknown as Account | null;
   }
 
   const parsed = parseChatInput(value);
@@ -63,6 +63,9 @@ async function findAccount(rawIdentifier: string): Promise<Account | null> {
   if (parsed.kind === "id") {
     chatId = parsed.chatId;
   } else {
+    const directMatch = await User.findOne({ telegramUsername: parsed.username })
+      .select("name email phone role isActive isEmailVerified isTelegramVerified telegramChatId telegramUsername schoolName officialSchoolName grade fieldOfStudy createdAt");
+    if (directMatch) return directMatch as unknown as Account;
     const contact = await TelegramContact.findOne({ username: parsed.username })
       .sort({ lastSeenAt: -1 }).select("chatId").lean();
     if (!contact) return null;
@@ -71,7 +74,7 @@ async function findAccount(rawIdentifier: string): Promise<Account | null> {
 
   return await User.findOne({
     $or: [{ telegramChatId: chatId }, ...(parsed.kind === "username" ? [{ telegramUsername: parsed.username }] : [])],
-  }).select("name email phone role isActive isEmailVerified isTelegramVerified telegramChatId telegramUsername") as unknown as Account | null;
+  }).select("name email phone role isActive isEmailVerified isTelegramVerified telegramChatId telegramUsername schoolName officialSchoolName grade fieldOfStudy createdAt") as unknown as Account | null;
 }
 
 async function deliver(channel: Channel, user: Account, code: string): Promise<void> {
