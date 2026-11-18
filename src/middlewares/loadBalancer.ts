@@ -14,7 +14,9 @@ const clusterFingerprint = createHash("sha256")
   .slice(0, 16);
 
 function forcedBackend(path: string, body: any): "railway" | "render" | null {
-  if (path === "/auth/forgot-password/send-code" || path === "/auth/forgot-password/reset") {
+  if (path.startsWith("/auth/forgot-password/")) {
+    if (body?.channel === "email") return "railway";
+    if (body?.channel === "telegram") return "render";
     return "render";
   }
 
