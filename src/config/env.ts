@@ -5,6 +5,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   MONGODB_URI: z.string().min(1),
+  TURSO_DATABASE_URL: z.string().default(""),
+  TURSO_AUTH_TOKEN: z.string().default(""),
   JWT_SECRET: z.string().min(32),
   TELEGRAM_BOT_TOKEN: z.string().default(""),
   TELEGRAM_FILES_BOT_TOKEN: z.string().default(""),
