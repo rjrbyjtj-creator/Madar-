@@ -13,6 +13,7 @@ import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
 import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
+import { retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
 
 const messageSchema = z.object({
   role: z.enum(["user", "model"]),
@@ -351,9 +352,11 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
-  const availableFilesContext = isStudyFilesRequest(latestUserMessage)
+  const studyFilesContext = isStudyFilesRequest(latestUserMessage)
     ? await buildStudyFilesContext()
     : undefined;
+  const textbookContext = await retrieveTextbookContext(latestUserMessage);
+  const availableFilesContext = [studyFilesContext, textbookContext].filter(Boolean).join("\\n\\n") || undefined;
   const plannerContext = plannerRelevant
     ? [
         await buildPlannerContext(user._id, parsed.data.localDate),
