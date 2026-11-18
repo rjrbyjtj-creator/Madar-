@@ -6,6 +6,7 @@ import { env } from "./config/env.js";
 import { seedDefaultAdmin } from "./services/seed.service.js";
 import { seedDefaultThemes } from "./services/theme.service.js";
 import { seedDefaultArticles } from "./services/articles.service.js";
+import { initializeMusicStore } from "./services/music-store.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
 import { startTelegramFilesBot, stopTelegramFilesBot } from "./services/telegram-files.service.js";
 import { logger } from "./utils/logger.js";
@@ -31,6 +32,7 @@ async function shutdown(signal: string, server: Server): Promise<void> {
 async function startServer(): Promise<void> {
   try {
     await connectDB();
+    try { await initializeMusicStore(); } catch (error) { console.error("[MUSIC_DB] Turso initialization failed; other backend features will continue:", error instanceof Error ? error.message : error); }
     await seedDefaultAdmin();
     await seedDefaultThemes();
     await seedDefaultArticles();
