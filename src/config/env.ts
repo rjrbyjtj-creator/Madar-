@@ -8,10 +8,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   TELEGRAM_BOT_TOKEN: z.string().default(""),
   TELEGRAM_FILES_BOT_TOKEN: z.string().default(""),
-  SMTP_USER: z.string().email().default(""),
-  SMTP_APP_PASSWORD: z.string().default(""),
   GOOGLE_APPS_SCRIPT_URL: z.string().url().or(z.literal("")).default(""),
   GOOGLE_APPS_SCRIPT_SECRET: z.string().default(""),
+  SMTP_USER: z.string().default(""),
+  SMTP_APP_PASSWORD: z.string().default(""),
   CLIENT_URL: z.string().min(1).default("http://localhost:3000"),
   OTP_EXPIRES_MINUTES: z.coerce.number().int().min(1).max(30).default(3),
   OTP_RESEND_SECONDS: z.coerce.number().int().min(10).max(600).default(60),
@@ -27,6 +27,9 @@ const envSchema = z.object({
   GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
   GEMINI_TTS_MODEL: z.string().min(1).default("gemini-3.1-flash-tts-preview"),
   GEMINI_LIVE_MODEL: z.string().min(1).default("gemini-3.8-live"),
+  BACKEND_ROLE: z.enum(["railway", "render"]).default("railway"),
+  PEER_BACKEND_URL: z.string().url().or(z.literal("")).default(""),
+  LOAD_BALANCER_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -39,17 +42,16 @@ if (!parsed.success) {
 }
 
 const data = parsed.data;
-
-// Normalize retired Flash model IDs that may still be set in hosting environment variables.
 const configuredGeminiModel = data.GEMINI_MODEL.trim();
 const GEMINI_MODEL = ["gemini-2.5-flash", "gemini-3.6-flash"].includes(configuredGeminiModel)
   ? "gemini-3.8-flash"
   : configuredGeminiModel;
+
 export const env = {
   ...data,
   GEMINI_MODEL,
   isProduction: data.NODE_ENV === "production",
   clientOrigins: data.CLIENT_URL.split(",")
-    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .map((origin) => origin.trim().replace(/\\/+$/, ""))
     .filter(Boolean),
 };
