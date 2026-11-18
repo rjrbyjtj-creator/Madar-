@@ -5,7 +5,8 @@ const gradeSchema = new Schema({
   id: { type: String, required: true, trim: true, maxlength: 64 },
   subject: { type: String, required: true, trim: true, maxlength: 60 },
   source: { type: String, enum: ["school", "maz", "ghalamchi"], required: true },
-  score: { type: Number, required: true, min: 0, max: 100 },
+  score: { type: Number, required: true, min: 0, max: 10000 },
+  outOf: { type: Number, min: 0.01, max: 10000, default: 100 },
   date: { type: String, default: "", match: /^(\d{4}-\d{2}-\d{2})?$/ },
 }, { _id: false });
 
