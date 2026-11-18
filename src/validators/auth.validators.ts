@@ -158,3 +158,36 @@ export function parseResetPassword(input: unknown): ResetPasswordInput {
     pass: newPasswordField(body),
   };
 }
+
+export type PasswordResetChannel = "email" | "telegram";
+export type PasswordResetSendInput = { identifier: string; channel: PasswordResetChannel };
+export type PasswordResetVerifyInput = PasswordResetSendInput & { code: string };
+export type PasswordResetCompleteInput = PasswordResetSendInput & { resetToken: string; newPassword: string };
+
+function resetChannel(body: Body): PasswordResetChannel {
+  if (body.channel !== "email" && body.channel !== "telegram") throw invalid("type");
+  return body.channel;
+}
+function resetIdentifier(body: Body): string {
+  const value = text(body, "identifier");
+  if (!value || value.length > 254) throw invalid("user");
+  return normalizeDigits(value);
+}
+export function parsePasswordResetSend(input: unknown): PasswordResetSendInput {
+  const body = toBody(input);
+  return { identifier: resetIdentifier(body), channel: resetChannel(body) };
+}
+export function parsePasswordResetVerify(input: unknown): PasswordResetVerifyInput {
+  const body = toBody(input);
+  return { identifier: resetIdentifier(body), channel: resetChannel(body), code: codeField(body) };
+}
+export function parsePasswordResetComplete(input: unknown): PasswordResetCompleteInput {
+  const body = toBody(input);
+  const resetToken = text(body, "resetToken");
+  if (resetToken.length < 32 || resetToken.length > 200) throw invalid("code");
+  const rawPassword = body.newPassword;
+  if (typeof rawPassword !== "string" || rawPassword.length < 6 || Buffer.byteLength(rawPassword, "utf8") > 72) {
+    throw invalid("pass");
+  }
+  return { identifier: resetIdentifier(body), channel: resetChannel(body), resetToken, newPassword: rawPassword };
+}
