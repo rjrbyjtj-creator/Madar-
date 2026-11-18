@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
-import { PasswordResetChallenge } from "../models/ResetChallenge.js";
+import { PasswordResetChallenge } from "../models/PasswordResetChallenge.js";
 import { TelegramContact } from "../models/TelegramContact.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/errors.js";
