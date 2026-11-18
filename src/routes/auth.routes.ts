@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   forgotReset,
   forgotSendCode,
+  forgotVerifyCode,
   login,
   registerSendCode,
   registerVerify,
@@ -14,4 +15,5 @@ authRouter.post("/register/send-code", sendCodeLimiter, registerSendCode);
 authRouter.post("/register/verify", verifyLimiter, registerVerify);
 authRouter.post("/login", loginLimiter, login);
 authRouter.post("/forgot-password/send-code", sendCodeLimiter, forgotSendCode);
+authRouter.post("/forgot-password/verify-code", verifyLimiter, forgotVerifyCode);
 authRouter.post("/forgot-password/reset", verifyLimiter, forgotReset);
