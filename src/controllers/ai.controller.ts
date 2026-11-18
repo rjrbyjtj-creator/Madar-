@@ -217,12 +217,19 @@ async function buildStudentProfileContext(
     timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
   }).format(now);
 
-  const [history, upcomingExams] = await Promise.all([
+  const planAnchor = new Date(`${localDate}T12:00:00.000Z`);
+  const planFrom = new Date(planAnchor);
+  planFrom.setUTCDate(planFrom.getUTCDate() - 7);
+  const planTo = new Date(planAnchor);
+  planTo.setUTCDate(planTo.getUTCDate() + 14);
+  const [history, upcomingExams, recentPlans] = await Promise.all([
     StudentAcademicHistory.findOne({ user: userId })
       .select("grades tests notes performance solved exams updatedAt").lean(),
     Exam.find({ status: "published", scheduledAt: { $gte: now } })
       .select("title description subject grade scheduledAt durationMinutes questionCount totalScore")
       .sort({ scheduledAt: 1 }).limit(8).lean(),
+    Plan.find({ user: userId, date: { $gte: planFrom.toISOString().slice(0, 10), $lte: planTo.toISOString().slice(0, 10) } })
+      .select("date tasks note").sort({ date: 1 }).limit(22).lean(),
   ]);
 
   const profile = {
@@ -268,6 +275,14 @@ async function buildStudentProfileContext(
       questionCount: exam.questionCount, totalScore: exam.totalScore,
       description: exam.description,
     }))) : "در حال حاضر آزمون آینده منتشرشده‌ای در سامانه ثبت نشده است.",
+    "برنامه ثبت‌شده دانش‌آموز از ۷ روز گذشته تا ۱۴ روز آینده (فقط داده‌های ذخیره‌شده):",
+    recentPlans.length ? JSON.stringify(recentPlans.map((day) => ({
+      date: day.date,
+      tasks: (day.tasks ?? []).map((task) => ({
+        title: task.title, type: task.type, start: task.start, end: task.end, completed: Boolean(task.done),
+      })),
+      note: day.note || "",
+    }))).slice(0, 9000) : "در این بازه برنامه‌ای ثبت نشده است.",
   ].join("\n");
 }
 
