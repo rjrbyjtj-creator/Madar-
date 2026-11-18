@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { User } from "../models/User.js";
 import { StudyFile } from "../models/StudyFile.js";
-import { Music } from "../models/Music.js";
+import { saveMusicTrack } from "./music-store.service.js";
 import { hashPassword } from "../utils/security.js";
 
 type TgResponse<T> = { ok: boolean; result?: T; description?: string };
@@ -114,18 +114,14 @@ async function handle(message: TgMessage): Promise<void> {
     const artist = (audioMedia.performer || field("خواننده") || "نامشخص").trim().slice(0, 120);
     const album = field("آلبوم").slice(0, 120);
     const category = (field("دسته") || field("سبک") || "عمومی").slice(0, 60);
-    const saved = await Music.findOneAndUpdate(
-      { telegramFileUniqueId: audioMedia.file_unique_id },
-      { $set: {
-        telegramFileId: audioMedia.file_id, title, artist, album, category, duration,
-        fileName, mimeType, fileSize: size, caption,
-        uploadedByChatId: chatId,
-        uploadedByName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" "),
-        telegramMessageId: message.message_id, isActive: true,
-      } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-    await reply(message.chat.id, `🎵 آهنگ با موفقیت به کتابخانه موسیقی مدار اضافه شد.\n\n🎧 ${saved.title}\n👤 ${saved.artist}\n⏱ ${Math.floor(saved.duration / 60)}:${String(saved.duration % 60).padStart(2, "0")}\n📦 ${Math.ceil(saved.fileSize / 1024)} کیلوبایت\n\nدر فهرست آهنگ‌های سایت نمایش داده می‌شود.`);
+    const saved = await saveMusicTrack({
+      telegramFileId: audioMedia.file_id, telegramFileUniqueId: audioMedia.file_unique_id,
+      title, artist, album, category, duration, fileName, mimeType, fileSize: size, caption,
+      uploadedByChatId: chatId,
+      uploadedByName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" "),
+      telegramMessageId: message.message_id,
+    });
+    await reply(message.chat.id, "🎵 آهنگ با موفقیت در پایگاه داده موسیقی مدار ثبت شد.\n\n🎧 " + saved.title + "\n👤 " + saved.artist + "\n⏱ " + Math.floor(saved.duration/60) + ":" + String(saved.duration%60).padStart(2,"0") + "\n📦 " + Math.ceil(saved.fileSize/1024) + " کیلوبایت\n\nدر فهرست آهنگ‌های سایت نمایش داده می‌شود.");
     return;
   }
   if (!doc) {
