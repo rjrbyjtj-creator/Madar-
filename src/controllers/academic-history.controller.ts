@@ -10,7 +10,7 @@ const grade = z.object({
   id, subject: z.string().trim().min(1).max(60),
   source: z.enum(["school", "maz", "ghalamchi"]),
   score: z.number().min(0).max(10000), outOf: z.number().min(0.01).max(10000).default(100), date: z.string().regex(/^$|^\d{4}-\d{2}-\d{2}$/).default(""),
-});
+}).superRefine((value, ctx) => { if (value.score > value.outOf) ctx.addIssue({ code: "custom", path: ["score"], message: "نمره کسب‌شده نمی‌تواند از نمره کل بیشتر باشد." }); });
 const test = z.object({
   id, title: z.string().trim().min(1).max(120),
   provider: z.enum(["maz", "ghalamchi", "school", "other"]),
