@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import cors from "cors";
 import express, { type Request, type Response } from "express";
 import helmet from "helmet";
@@ -5,9 +6,10 @@ import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error.js";
 import { apiLimiter } from "./middlewares/rateLimit.js";
 import { requestLogger } from "./middlewares/requestLogger.js";
+import { loadBalancerProxy } from "./middlewares/loadBalancer.js";
 import { apiRouter } from "./routes/index.js";
 
-const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const LOCAL_ORIGIN = /^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?$/;
 const EXTRA_ORIGINS = ["https://rjrbyjtj-creator.github.io"];
 
 function isAllowedOrigin(origin: string): boolean {
@@ -15,6 +17,11 @@ function isAllowedOrigin(origin: string): boolean {
   if (env.clientOrigins.includes(origin)) return true;
   return !env.isProduction && (origin === "null" || LOCAL_ORIGIN.test(origin));
 }
+
+const clusterFingerprint = createHash("sha256")
+  .update(`${env.MONGODB_URI}\\0${env.JWT_SECRET}`)
+  .digest("hex")
+  .slice(0, 12);
 
 export function createApp() {
   const app = express();
@@ -38,15 +45,23 @@ export function createApp() {
   app.use(requestLogger);
   app.use(express.json({ limit: "40kb" }));
   app.get("/health", (_req: Request, res: Response) => {
-    res.json({ status: "ok", message: "Backend is running!" });
+    res.json({
+      status: "ok",
+      message: "Backend is running!",
+      role: env.BACKEND_ROLE,
+      clusterFingerprint,
+    });
   });
+
+  // Route each API request to one node only; the peer skips re-routing.
+  app.use("/api", loadBalancerProxy);
   app.use("/api", (_req, res, next) => {
-    // Prevent conditional caching of authenticated API responses.
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
     next();
   }, apiLimiter, apiRouter);
+
   app.use(notFoundHandler);
   app.use(errorHandler);
   return app;
