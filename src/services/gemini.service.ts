@@ -50,7 +50,7 @@ function createAI(timeoutMs: number): GoogleGenAI {
   });
 }
 
-export async function uploadGeminiPdf(buffer: Buffer, fileName: string): Promise<{
+export async function uploadGeminiFile(buffer: Buffer, fileName: string, mimeType: string): Promise<{
   name: string;
   uri: string;
   mimeType: string;
@@ -62,8 +62,8 @@ export async function uploadGeminiPdf(buffer: Buffer, fileName: string): Promise
   try {
     const ai = createAI(60_000);
     let file = await ai.files.upload({
-      file: new Blob([new Uint8Array(buffer)], { type: "application/pdf" }),
-      config: { mimeType: "application/pdf", displayName: fileName },
+      file: new Blob([new Uint8Array(buffer)], { type: mimeType }),
+      config: { mimeType, displayName: fileName },
     });
     for (let attempt = 0; attempt < 20 && String(file.state ?? "").toUpperCase() === "PROCESSING"; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -71,10 +71,10 @@ export async function uploadGeminiPdf(buffer: Buffer, fileName: string): Promise
       file = await ai.files.get({ name: file.name });
     }
     if (String(file.state ?? "").toUpperCase() === "FAILED") {
-      throw new Error("Gemini could not process the uploaded PDF.");
+      throw new Error("Gemini could not process the uploaded file.");
     }
     if (!file.name || !file.uri || !file.mimeType) {
-      throw new Error("Gemini did not return a usable PDF reference.");
+      throw new Error("Gemini did not return a usable file reference.");
     }
     return {
       name: file.name,
@@ -83,12 +83,11 @@ export async function uploadGeminiPdf(buffer: Buffer, fileName: string): Promise
       ...(file.expirationTime ? { expirationTime: file.expirationTime } : {}),
     };
   } catch (error) {
-    console.error("[AI] PDF upload failed:", safeError(error));
+    console.error("[AI] file upload failed:", safeError(error));
     if (error instanceof AppError) throw error;
-    throw new AppError(502, "PDF_UPLOAD_FAILED", "بارگذاری یا آماده‌سازی PDF ناموفق بود. دوباره تلاش کن.");
+    throw new AppError(502, "FILE_UPLOAD_FAILED", "بارگذاری یا آماده‌سازی فایل ناموفق بود. دوباره تلاش کن.");
   }
 }
-
 function safeError(error: unknown): string {
   const message = error instanceof Error ? error.message : "Unknown Gemini error";
   return (env.GEMINI_API_KEY ? message.split(env.GEMINI_API_KEY).join("[REDACTED]") : message)
