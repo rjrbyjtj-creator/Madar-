@@ -11,6 +11,18 @@ const messageSchema = new Schema(
   { _id: false },
 );
 
+const chatDocumentSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    uri: { type: String, required: true },
+    mimeType: { type: String, required: true, default: "application/pdf" },
+    fileName: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+    uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const conversationSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
@@ -18,6 +30,7 @@ const conversationSchema = new Schema(
     isPinned: { type: Boolean, default: false },
     shareToken: { type: String, default: null, sparse: true, index: true },
     messages: { type: [messageSchema], default: [] },
+    documents: { type: [chatDocumentSchema], default: [] },
   },
   { timestamps: true, versionKey: false },
 );
