@@ -54,8 +54,8 @@ const DEFAULT_THEMES: Array<{
     name: "خاکستری",
     slug: "gray",
     colors: {
-      navy: "#343a40", gold: "#858b93", bg: "#f3f4f6", green: "#64748b",
-      text: "#24292f", muted: "#747b84", surface: "#ffffff", line: "#dfe3e8",
+      navy: "#555e5b", gold: "#668c82", bg: "#e9eaeb", green: "#668c82",
+      text: "#282d2c", muted: "#737b78", surface: "#f8f8f7", line: "#d4d7d6",
     },
     font: "vazir", mode: "light", isDefault: true,
   },
@@ -84,11 +84,20 @@ export function fontCss(font: string): string {
 export async function seedDefaultThemes(): Promise<void> {
   try {
     for (const theme of DEFAULT_THEMES) {
-      await Theme.updateOne(
-        { slug: theme.slug },
-        { $setOnInsert: { ...theme, isActive: false, isDefault: true } },
-        { upsert: true },
-      );
+      if (theme.slug === "gray") {
+        // Keep the built-in gray pack aligned with the exact gray palette used by Robo.
+        await Theme.updateOne(
+          { slug: theme.slug },
+          { $set: { name: theme.name, colors: theme.colors, font: theme.font, isDefault: true }, $setOnInsert: { slug: theme.slug, mode: theme.mode, isActive: false } },
+          { upsert: true },
+        );
+      } else {
+        await Theme.updateOne(
+          { slug: theme.slug },
+          { $setOnInsert: { ...theme, isActive: false, isDefault: true } },
+          { upsert: true },
+        );
+      }
     }
 
     // Migrate old built-in presets to the single branded default without
