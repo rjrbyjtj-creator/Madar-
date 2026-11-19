@@ -301,10 +301,10 @@ export async function uploadChatDocument(req: Request, res: Response): Promise<v
   let rawName = req.get("X-File-Name") || "document.pdf";
   try { rawName = decodeURIComponent(rawName); } catch { /* keep the original header value */ }
   const fileName = rawName
-    .replace(/[\\/\\\\\\u0000-\\u001f<>:"|?*]/g, "_")
+    .replace(/[\/\\\u0000-\u001f<>:"|?*]/g, "_")
     .trim()
     .slice(0, 120) || "document.pdf";
-  if (!/\\.pdf$/i.test(fileName)) {
+  if (!/\.pdf$/i.test(fileName)) {
     throw new AppError(400, "INVALID_PDF_NAME", "پسوند فایل باید PDF باشد.");
   }
 
@@ -319,7 +319,7 @@ export async function uploadChatDocument(req: Request, res: Response): Promise<v
   } else {
     conversation = new Conversation({
       user: user._id,
-      title: fileName.replace(/\\.pdf$/i, "").slice(0, 72) || "گفتگو درباره PDF",
+      title: fileName.replace(/\.pdf$/i, "").slice(0, 72) || "گفتگو درباره PDF",
       messages: [],
       documents: [],
     });
