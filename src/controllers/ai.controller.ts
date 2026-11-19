@@ -8,7 +8,7 @@ import { StudentAcademicHistory } from "../models/StudentAcademicHistory.js";
 import { Exam } from "../models/Exam.js";
 import { AppError } from "../utils/errors.js";
 import { env } from "../config/env.js";
-import { generateGeminiReply, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
+import { generateGeminiReply, uploadGeminiPdf, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
 import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
@@ -288,6 +288,70 @@ async function buildStudentProfileContext(
 }
 
 
+export async function uploadChatDocument(req: Request, res: Response): Promise<void> {
+  const user = res.locals.user as AuthUser;
+  const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  if (buffer.length < 8 || buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    throw new AppError(400, "INVALID_PDF", "فایل ارسالی یک PDF معتبر نیست.");
+  }
+  if (buffer.length > 15 * 1024 * 1024) {
+    throw new AppError(413, "PDF_TOO_LARGE", "حداکثر حجم PDF قابل ارسال ۱۵ مگابایت است.");
+  }
+
+  let rawName = req.get("X-File-Name") || "document.pdf";
+  try { rawName = decodeURIComponent(rawName); } catch { /* keep the original header value */ }
+  const fileName = rawName
+    .replace(/[\\/\\\\\\u0000-\\u001f<>:"|?*]/g, "_")
+    .trim()
+    .slice(0, 120) || "document.pdf";
+  if (!/\\.pdf$/i.test(fileName)) {
+    throw new AppError(400, "INVALID_PDF_NAME", "پسوند فایل باید PDF باشد.");
+  }
+
+  let conversation;
+  const requestedId = typeof req.query.conversationId === "string" ? req.query.conversationId : "";
+  if (requestedId) {
+    if (!mongoose.isValidObjectId(requestedId)) {
+      throw new AppError(400, "INVALID_CONVERSATION_ID", "شناسه گفتگو معتبر نیست.");
+    }
+    conversation = await Conversation.findOne({ _id: requestedId, user: user._id }).select("_id title messages documents");
+    if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
+  } else {
+    conversation = new Conversation({
+      user: user._id,
+      title: fileName.replace(/\\.pdf$/i, "").slice(0, 72) || "گفتگو درباره PDF",
+      messages: [],
+      documents: [],
+    });
+  }
+
+  if ((conversation.documents ?? []).length >= 3) {
+    throw new AppError(400, "PDF_LIMIT_REACHED", "در هر گفتگو حداکثر می‌توان ۳ فایل PDF پیوست کرد.");
+  }
+
+  const uploaded = await uploadGeminiPdf(buffer, fileName);
+  const expiresAt = uploaded.expirationTime
+    ? new Date(uploaded.expirationTime)
+    : new Date(Date.now() + 48 * 60 * 60 * 1000);
+  conversation.documents.push({
+    name: uploaded.name,
+    uri: uploaded.uri,
+    mimeType: uploaded.mimeType,
+    fileName,
+    expiresAt,
+    uploadedAt: new Date(),
+  });
+  await conversation.save();
+
+  res.status(201).json({
+    ok: true,
+    conversationId: String(conversation._id),
+    documentId: uploaded.name,
+    fileName,
+    expiresAt,
+  });
+}
+
 export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const parsed = chatSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -318,7 +382,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     conversation = await Conversation.findOne({
       _id: parsed.data.conversationId,
       user: user._id,
-    }).select("_id title messages");
+    }).select("_id title messages documents");
     if (!conversation) {
       throw new AppError(404, "CONVERSATION_NOT_FOUND", "این گفتگو پیدا نشد.");
     }
@@ -376,7 +440,27 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
   const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
-  const aiMessages = [...history, { role: "user" as const, content: latestUserMessage }];
+  const conversationDocuments = (conversation.documents ?? []).map((document) => ({
+    fileUri: String(document.uri),
+    mimeType: String(document.mimeType || "application/pdf"),
+    fileName: String(document.fileName),
+    expiresAt: new Date(document.expiresAt),
+  }));
+  const expiredDocument = conversationDocuments.find((document) => !Number.isFinite(document.expiresAt.getTime()) || document.expiresAt.getTime() <= Date.now());
+  if (expiredDocument) {
+    throw new AppError(410, "PDF_EXPIRED", "مهلت نگهداری این PDF در سرویس پردازش فایل تمام شده است؛ لطفاً فایل را دوباره در همین گفتگو پیوست کن.");
+  }
+  if (conversationDocuments.length && selectedProvider !== "gemini") {
+    throw new AppError(400, "PDF_REQUIRES_GEMINI", "برای خواندن PDF، نمودارها و فرمول‌های آن، مدل Gemini را انتخاب کن.");
+  }
+  const aiMessages: GeminiMessage[] = [
+    ...history,
+    {
+      role: "user",
+      content: latestUserMessage,
+      ...(conversationDocuments.length ? { attachments: conversationDocuments.map(({ fileUri, mimeType, fileName }) => ({ fileUri, mimeType, fileName })) } : {}),
+    },
+  ];
   const aiStudentContext = {
     name: user.name,
     role: user.role,
