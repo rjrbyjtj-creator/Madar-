@@ -23,7 +23,7 @@ aiRouter.delete("/conversations/:id", requireAuth, deleteConversation);
 aiRouter.post("/conversations/:id/title", requireAuth, renameConversation);
 aiRouter.post("/conversations/:id/pin", requireAuth, toggleConversationPin);
 aiRouter.post("/conversations/:id/share", requireAuth, createConversationShare);
-aiRouter.post("/documents", requireAuth, aiChatLimiter, express.raw({ type: "application/pdf", limit: "15mb" }), uploadChatDocument);
+aiRouter.post("/documents", requireAuth, aiChatLimiter, express.raw({ type: ["application/pdf", "image/jpeg", "image/png", "image/webp"], limit: "15mb" }), uploadChatDocument);
 aiRouter.post("/chat", requireAuth, aiChatLimiter, chatWithAI);
 aiRouter.post("/speech", requireAuth, aiSpeechLimiter, synthesizeSpeech);
 aiRouter.post("/voice/token", requireAuth, aiLiveTokenLimiter, createLiveToken);
