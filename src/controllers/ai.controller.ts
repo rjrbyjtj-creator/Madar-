@@ -8,7 +8,7 @@ import { StudentAcademicHistory } from "../models/StudentAcademicHistory.js";
 import { Exam } from "../models/Exam.js";
 import { AppError } from "../utils/errors.js";
 import { env } from "../config/env.js";
-import { generateGeminiReply, uploadGeminiPdf, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
+import { generateGeminiReply, uploadGeminiFile, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
 import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
@@ -291,21 +291,37 @@ async function buildStudentProfileContext(
 export async function uploadChatDocument(req: Request, res: Response): Promise<void> {
   const user = res.locals.user as AuthUser;
   const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-  if (buffer.length < 8 || buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
-    throw new AppError(400, "INVALID_PDF", "فایل ارسالی یک PDF معتبر نیست.");
+  const mimeType = (req.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+  const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+  if (!allowedTypes.has(mimeType)) {
+    throw new AppError(415, "UNSUPPORTED_FILE_TYPE", "فقط PDF و تصاویر JPG، PNG یا WEBP قابل ارسال هستند.");
+  }
+  if (buffer.length < 8) {
+    throw new AppError(400, "INVALID_FILE", "فایل ارسالی معتبر نیست.");
   }
   if (buffer.length > 15 * 1024 * 1024) {
-    throw new AppError(413, "PDF_TOO_LARGE", "حداکثر حجم PDF قابل ارسال ۱۵ مگابایت است.");
+    throw new AppError(413, "FILE_TOO_LARGE", "حداکثر حجم فایل قابل ارسال ۱۵ مگابایت است.");
+  }
+  const validSignature =
+    (mimeType === "application/pdf" && buffer.subarray(0, 5).toString("ascii") === "%PDF-") ||
+    (mimeType === "image/jpeg" && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) ||
+    (mimeType === "image/png" && buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
+    (mimeType === "image/webp" && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP");
+  if (!validSignature) {
+    throw new AppError(400, "INVALID_FILE", "محتوای فایل با نوع اعلام‌شده مطابقت ندارد.");
   }
 
-  let rawName = req.get("X-File-Name") || "document.pdf";
-  try { rawName = decodeURIComponent(rawName); } catch { /* keep the original header value */ }
+  let rawName = req.get("X-File-Name") || (mimeType === "application/pdf" ? "document.pdf" : "image");
+  try { rawName = decodeURIComponent(rawName); } catch { /* keep original header */ }
   const fileName = rawName
     .replace(/[\/\\\u0000-\u001f<>:"|?*]/g, "_")
     .trim()
-    .slice(0, 120) || "document.pdf";
-  if (!/\.pdf$/i.test(fileName)) {
-    throw new AppError(400, "INVALID_PDF_NAME", "پسوند فایل باید PDF باشد.");
+    .slice(0, 120) || "attachment";
+  const expectedExtension = mimeType === "application/pdf" ? /\.pdf$/i :
+    mimeType === "image/jpeg" ? /\.(jpe?g)$/i :
+    mimeType === "image/png" ? /\.png$/i : /\.webp$/i;
+  if (!expectedExtension.test(fileName)) {
+    throw new AppError(400, "INVALID_FILE_NAME", "پسوند نام فایل با نوع آن مطابقت ندارد.");
   }
 
   let conversation;
@@ -319,17 +335,17 @@ export async function uploadChatDocument(req: Request, res: Response): Promise<v
   } else {
     conversation = new Conversation({
       user: user._id,
-      title: fileName.replace(/\.pdf$/i, "").slice(0, 72) || "گفتگو درباره PDF",
+      title: fileName.replace(/\.[^.]+$/i, "").slice(0, 72) || "گفتگو درباره فایل",
       messages: [],
       documents: [],
     });
   }
 
   if ((conversation.documents ?? []).length >= 3) {
-    throw new AppError(400, "PDF_LIMIT_REACHED", "در هر گفتگو حداکثر می‌توان ۳ فایل PDF پیوست کرد.");
+    throw new AppError(400, "FILE_LIMIT_REACHED", "در هر گفتگو حداکثر می‌توان ۳ فایل پیوست کرد.");
   }
 
-  const uploaded = await uploadGeminiPdf(buffer, fileName);
+  const uploaded = await uploadGeminiFile(buffer, fileName, mimeType);
   const expiresAt = uploaded.expirationTime
     ? new Date(uploaded.expirationTime)
     : new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -348,6 +364,7 @@ export async function uploadChatDocument(req: Request, res: Response): Promise<v
     conversationId: String(conversation._id),
     documentId: uploaded.name,
     fileName,
+    mimeType,
     expiresAt,
   });
 }
