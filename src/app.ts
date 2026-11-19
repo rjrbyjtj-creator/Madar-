@@ -48,7 +48,7 @@ export function createApp() {
       callback(null, allowed);
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-File-Name"],
     maxAge: 600,
   }));
 
