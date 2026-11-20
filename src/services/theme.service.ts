@@ -63,8 +63,8 @@ const DEFAULT_THEMES: Array<{
     name: "کلود",
     slug: "claude",
     colors: {
-      navy: "#C96F52", gold: "#D97757", bg: "#F7F6F2", green: "#D97757",
-      text: "#292725", muted: "#77736F", surface: "#FFFFFF", line: "#E7E3DD",
+      navy: "#315B9A", gold: "#C5A66A", bg: "#F4F6FA", green: "#2F9B72",
+      text: "#202B3C", muted: "#68778D", surface: "#FFFFFF", line: "#DFE5EF",
     },
     font: "vazir", mode: "light", isDefault: true,
   },
@@ -93,8 +93,8 @@ export function fontCss(font: string): string {
 export async function seedDefaultThemes(): Promise<void> {
   try {
     for (const theme of DEFAULT_THEMES) {
-      if (theme.slug === "gray") {
-        // Keep the built-in gray pack aligned with the exact gray palette used by Robo.
+      if (theme.slug === "gray" || theme.slug === "claude") {
+        // Keep built-in visual packs aligned with their source palettes on every startup.
         await Theme.updateOne(
           { slug: theme.slug },
           { $set: { name: theme.name, colors: theme.colors, font: theme.font, isDefault: true }, $setOnInsert: { slug: theme.slug, mode: theme.mode, isActive: false } },
