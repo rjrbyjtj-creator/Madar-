@@ -63,8 +63,8 @@ const DEFAULT_THEMES: Array<{
     name: "کلود",
     slug: "claude",
     colors: {
-      navy: "#315B9A", gold: "#C5A66A", bg: "#F4F6FA", green: "#2F9B72",
-      text: "#202B3C", muted: "#68778D", surface: "#FFFFFF", line: "#DFE5EF",
+      navy: "#55585C", gold: "#777777", bg: "#F5F5F4", green: "#6F8F7C",
+      text: "#252525", muted: "#777777", surface: "#FFFFFF", line: "#E2E2E2",
     },
     font: "vazir", mode: "light", isDefault: true,
   },
