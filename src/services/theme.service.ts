@@ -59,6 +59,15 @@ const DEFAULT_THEMES: Array<{
     },
     font: "vazir", mode: "light", isDefault: true,
   },
+  {
+    name: "کلود",
+    slug: "claude",
+    colors: {
+      navy: "#C96F52", gold: "#D97757", bg: "#F7F6F2", green: "#D97757",
+      text: "#292725", muted: "#77736F", surface: "#FFFFFF", line: "#E7E3DD",
+    },
+    font: "vazir", mode: "light", isDefault: true,
+  },
 ];
 
 export function toPublicTheme(doc: ThemeDocument | Record<string, unknown>): PublicTheme {
