@@ -169,10 +169,12 @@ async function callModel(
 ): Promise<{ text: string; finishReason?: string; blocked?: boolean; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   const ai = createAI(timeoutMs);
   const tools = studentId ? [{ functionDeclarations: [...plannerToolDeclarations] }] : undefined;
+  const examJsonMode = systemInstruction.includes("حالت طراحی آزمون تشریحی فعال است");
   const config: Record<string, unknown> = {
     systemInstruction,
     temperature,
-    maxOutputTokens: systemInstruction.includes("نویسنده ارشد") ? 4096 : 2048,
+    maxOutputTokens: examJsonMode || systemInstruction.includes("نویسنده ارشد") ? 4096 : 2048,
+    ...(examJsonMode ? { responseMimeType: "application/json" } : {}),
     ...(tools ? { tools, toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}),
   };
   let response = await ai.models.generateContent({ model, contents, config } as never);
@@ -320,17 +322,18 @@ export async function generateGeminiReply(
   }));
 
   const primary = selectedModel ?? env.GEMINI_MODEL ?? "gemini-3.8-flash";
-  // Keep one lightweight fallback; the separate Gemini Live voice model is unchanged.
-  const fallback = primary === "gemini-3.5-flash-lite" ? "gemini-3.6-flash" : "gemini-3.5-flash-lite";
+  // Try the primary and both supported Flash fallbacks; this is especially useful during transient 503/504 incidents.
+  const modelOrder = [primary, "gemini-3.6-flash", "gemini-3.5-flash-lite"];
+  const attempts: Array<{ model: string; timeoutMs: number }> = modelOrder
+    .filter((model, index, all) => all.indexOf(model) === index)
+    .map((model, index) => ({
+      model,
+      timeoutMs: index === 0 ? PRIMARY_TIMEOUT_MS : FALLBACK_TIMEOUT_MS,
+    }));
 
   const requestStartedAt = Date.now();
   let lastStatus = 502;
   let lastFinishReason: string | undefined;
-
-  const attempts: Array<{ model: string; timeoutMs: number }> = [
-    { model: primary, timeoutMs: PRIMARY_TIMEOUT_MS },
-    { model: fallback, timeoutMs: FALLBACK_TIMEOUT_MS },
-  ].filter((item, index, all) => all.findIndex((x) => x.model === item.model) === index);
 
   for (const { model, timeoutMs } of attempts) {
     const started = Date.now();
@@ -341,7 +344,7 @@ export async function generateGeminiReply(
         timeoutMs,
         contents,
         systemInstruction,
-        0.6,
+        student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 0.25 : 0.6,
         student.userId,
       );
       lastFinishReason = finishReason;
