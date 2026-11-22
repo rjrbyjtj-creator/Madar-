@@ -32,20 +32,52 @@ function escapeHtml(value: unknown): string {
   })[char] ?? char);
 }
 
+const faDigits = (value: unknown): string =>
+  String(value ?? "").replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)]).replace(/\./g, "/");
+
 function renderQuestionText(value: string): string {
-  // Strip accidental code formatting and normalize bare TeX units like 5 \mathrm{kg}.
-  const source = String(value ?? "")
-    .replace(/\x60([^\x60\n]+)\x60/g, "$1")
-    .replace(/(^|[\s(])(\d+(?:[.,]\d+)?)\s*\\(?:mathrm|text)\{([^{}]+)\}/g,
-      (_match, prefix: string, amount: string, unit: string) => prefix + "\\(" + amount + "\\,\\mathrm{" + unit + "}\\)");
+  const source = String(value ?? "").replace(/`([^`\n]+)`/g, "$1");
   const parts = source.split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\$(?!\$)[^\n$]+\$)/g);
   return parts.map((part) => {
-    if (part.startsWith("\\(") && part.endsWith("\\)")) return '<span class="math-inline">' + part + '</span>';
-    if (part.startsWith("\\[") && part.endsWith("\\]")) return '<div class="math-display">' + part + '</div>';
+    if (part.startsWith("\\(") && part.endsWith("\\)")) return '<span class="math-inline">' + part + "</span>";
+    if (part.startsWith("\\[") && part.endsWith("\\]")) return '<div class="math-display">' + part + "</div>";
     if (part.startsWith("$$") && part.endsWith("$$")) return '<div class="math-display">\\[' + part.slice(2, -2) + '\\]</div>';
     if (part.startsWith("$") && part.endsWith("$")) return '<span class="math-inline">\\(' + part.slice(1, -1) + '\\)</span>';
     return escapeHtml(part).replace(/\r?\n/g, "<br>");
   }).join("");
+}
+
+const iconPaths: Record<string, string> = {
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+  school: '<path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 10h.01M15 10h.01"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20v-1a5 5 0 0 1 5-5h3a5 5 0 0 1 5 5v1M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20v-1a5 5 0 0 0-3.5-4.7"/>',
+  board: '<path d="M3 5h18v11H3zM8 21h8M12 16v5"/>',
+  book: '<path d="M12 6.5C10.5 5 8 4.5 4 4.5v14c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-14c-4 0-6.5.5-8 2zM12 6.5v14"/>',
+  cap: '<path d="M2 9l10-5 10 5-10 5zM6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6"/>',
+  cal: '<rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/>',
+  layers: '<path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/>',
+  bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+};
+
+function svgIcon(name: string): string {
+  return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + (iconPaths[name] ?? "") + "</svg>";
+}
+
+function renderStudentInfo(data: ExamPaperData): string {
+  const fields: Array<[string, string, string]> = [
+    ["نام و نام خانوادگی", data.studentName ?? "", "user"],
+    ["مدرسه", data.school ?? "", "school"],
+    ["کلاس", data.className ?? "", "users"],
+    ["نام دبیر", data.teacher ?? "", "board"],
+    ["نام درس", data.subject, "book"],
+    ["پایه", data.grade, "cap"],
+    ["تاریخ آزمون", data.examDate ?? "", "cal"],
+    ["رشته", data.field ?? "", "layers"],
+  ];
+  return fields.map(([label, value, icon]) =>
+    '<div class="f">' + svgIcon(icon) + '<div><span>' + escapeHtml(label) +
+    '</span><b>' + escapeHtml(value) + "</b></div></div>"
+  ).join("\n");
 }
 
 function renderQuestionBlocks(questions: ExamPaperQuestion[]): string {
@@ -53,41 +85,36 @@ function renderQuestionBlocks(questions: ExamPaperQuestion[]): string {
   return questions.map((question) => {
     const section = question.section?.trim() ?? "";
     const sectionMarkup = section && section !== currentSection
-      ? (currentSection = section, `<div class="section-title">${escapeHtml(section)}</div>`)
+      ? (currentSection = section, '<div class="sec">' + svgIcon("bookmark") +
+          '<span class="st">' + escapeHtml(section) + "</span></div>")
       : "";
     const lines = Math.max(1, Math.min(8, Math.floor(question.answerLines ?? 2)));
-    const answerLines = Array.from({ length: lines }, () => '<div class="answer-line"></div>').join("");
-    return `${sectionMarkup}
-<div class="question">
-  <div class="question-number">${escapeHtml(question.number)}</div>
-  <div class="question-body"><div class="question-text">${renderQuestionText(question.text)}</div><div class="answer-lines">${answerLines}</div></div>
-  <div class="question-score">${escapeHtml(question.score)}</div>
-</div>`;
+    const answerLines = '<div class="ans" style="height:' + (lines * 22) + 'px"></div>';
+    return sectionMarkup + '\n<div class="q">' +
+      '<div class="n"></div>' +
+      '<div><div class="qt">' + renderQuestionText(question.text) + "</div>" + answerLines + "</div>" +
+      '<div class="b"><span class="bv">' + escapeHtml(faDigits(question.score)) + "</span></div>" +
+      "</div>";
   }).join("\n");
 }
 
-/** Render the fixed Madar exam-paper design with newly generated question content. */
+/** Render questions inside the exact HTML template supplied by the user. */
 export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> {
   if (!data.questions.length) throw new Error("Exam paper must contain at least one question.");
   const scoreSum = data.questions.reduce((sum, question) => sum + question.score, 0);
   if (Math.abs(scoreSum - data.totalScore) > 0.001) {
-    throw new Error(`Question scores (${scoreSum}) do not equal the declared total (${data.totalScore}).`);
+    throw new Error("Question scores (" + scoreSum + ") do not equal the declared total (" + data.totalScore + ").");
   }
   const template = await readFile(TEMPLATE_PATH, "utf8");
   const values: Record<string, string> = {
-    documentTitle: data.examTitle,
-    examTitle: data.examTitle,
-    subject: data.subject,
-    grade: data.grade,
-    field: data.field ?? "",
-    duration: data.duration,
-    totalScore: String(data.totalScore),
-    examDate: data.examDate ?? "",
-    studentName: data.studentName ?? "",
-    school: data.school ?? "",
-    className: data.className ?? "",
-    teacher: data.teacher ?? "",
-    pageCount: "۱",
+    documentTitle: escapeHtml(data.examTitle),
+    examTitle: escapeHtml(data.examTitle),
+    subject: escapeHtml(data.subject),
+    grade: escapeHtml(data.grade),
+    field: escapeHtml(data.field ?? ""),
+    duration: escapeHtml(data.duration),
+    totalScore: escapeHtml(faDigits(data.totalScore)),
+    studentInfo: renderStudentInfo(data),
     questionBlocks: renderQuestionBlocks(data.questions),
   };
   return template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
