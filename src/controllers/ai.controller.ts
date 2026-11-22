@@ -468,6 +468,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   if (expiredDocument) {
     throw new AppError(410, "PDF_EXPIRED", "مهلت نگهداری این PDF در سرویس پردازش فایل تمام شده است؛ لطفاً فایل را دوباره در همین گفتگو پیوست کن.");
   }
+  if (parsed.data.screenFrame && selectedProvider !== "gemini") {
+    throw new AppError(400, "SCREEN_SHARE_REQUIRES_GEMINI", "برای تحلیل صفحهٔ به‌اشتراک‌گذاشته‌شده، مدل Gemini را انتخاب کن.");
+  }
   if (conversationDocuments.length && selectedProvider !== "gemini") {
     throw new AppError(400, "PDF_REQUIRES_GEMINI", "برای خواندن PDF، نمودارها و فرمول‌های آن، مدل Gemini را انتخاب کن.");
   }
