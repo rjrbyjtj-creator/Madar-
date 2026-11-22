@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{documentTitle}}</title>
 <style>
+@font-face{font-family:IRANSansDN;src:url('https://raw.githubusercontent.com/rjrbyjtj-creator/Madar-F/main/iransansdn.ttf') format('truetype');font-style:normal;font-weight:100 900;font-display:swap}
 @page{size:A4;margin:10mm}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:#fff;color:#171717;font-family:IRANSansDN,Tahoma,Arial,sans-serif}
@@ -41,6 +42,76 @@ body{font-size:11pt;line-height:1.8}
 .muted{color:#777}
 @media print{body{background:#fff}.paper{width:auto}.exam-header,.exam-footer,.section-title{print-color-adjust:exact;-webkit-print-color-adjust:exact}.question{break-inside:avoid}}
 </style>
+<script>window.MathJax={tex:{inlineMath:[['\\\\(','\\\\)'],['
+<body>
+<main class="paper">
+<header class="exam-header">
+  <div class="brand"><div class="brand-mark">M</div><div>مدار<small>دستیار آموزشی</small></div></div>
+  <div class="exam-title"><strong>{{examTitle}}</strong><span>{{grade}} {{field}}</span></div>
+  <div class="exam-meta">
+    <div><span>بارم کل</span><b>{{totalScore}}</b></div>
+    <div><span>مدت آزمون</span><b>{{duration}}</b></div>
+    <div><span>صفحه</span><b>۱ از {{pageCount}}</b></div>
+  </div>
+</header>
+<section class="student-info">
+  <div class="info-cell"><label>نام و نام خانوادگی</label><span>{{studentName}}</span></div>
+  <div class="info-cell"><label>مدرسه</label><span>{{school}}</span></div>
+  <div class="info-cell"><label>کلاس</label><span>{{className}}</span></div>
+  <div class="info-cell"><label>نام دبیر</label><span>{{teacher}}</span></div>
+  <div class="info-cell"><label>نام درس</label><span>{{subject}}</span></div>
+  <div class="info-cell"><label>پایه</label><span>{{grade}}</span></div>
+  <div class="info-cell"><label>تاریخ آزمون</label><span>{{examDate}}</span></div>
+  <div class="info-cell"><label>رشته</label><span>{{field}}</span></div>
+</section>
+<section class="questions">
+  <div class="table-head"><div>ردیف</div><div class="question-label">شرح سؤال</div><div>بارم</div></div>
+  {{questionBlocks}}
+</section>
+<footer class="exam-footer">
+  <strong>مدار | آزمون آموزشی</strong>
+  <span class="muted">موفق و پیروز باشید</span>
+  <strong>جمع بارم: {{totalScore}}</strong>
+</footer>
+</main>
+</body>
+</html>
+,'
+<body>
+<main class="paper">
+<header class="exam-header">
+  <div class="brand"><div class="brand-mark">M</div><div>مدار<small>دستیار آموزشی</small></div></div>
+  <div class="exam-title"><strong>{{examTitle}}</strong><span>{{grade}} {{field}}</span></div>
+  <div class="exam-meta">
+    <div><span>بارم کل</span><b>{{totalScore}}</b></div>
+    <div><span>مدت آزمون</span><b>{{duration}}</b></div>
+    <div><span>صفحه</span><b>۱ از {{pageCount}}</b></div>
+  </div>
+</header>
+<section class="student-info">
+  <div class="info-cell"><label>نام و نام خانوادگی</label><span>{{studentName}}</span></div>
+  <div class="info-cell"><label>مدرسه</label><span>{{school}}</span></div>
+  <div class="info-cell"><label>کلاس</label><span>{{className}}</span></div>
+  <div class="info-cell"><label>نام دبیر</label><span>{{teacher}}</span></div>
+  <div class="info-cell"><label>نام درس</label><span>{{subject}}</span></div>
+  <div class="info-cell"><label>پایه</label><span>{{grade}}</span></div>
+  <div class="info-cell"><label>تاریخ آزمون</label><span>{{examDate}}</span></div>
+  <div class="info-cell"><label>رشته</label><span>{{field}}</span></div>
+</section>
+<section class="questions">
+  <div class="table-head"><div>ردیف</div><div class="question-label">شرح سؤال</div><div>بارم</div></div>
+  {{questionBlocks}}
+</section>
+<footer class="exam-footer">
+  <strong>مدار | آزمون آموزشی</strong>
+  <span class="muted">موفق و پیروز باشید</span>
+  <strong>جمع بارم: {{totalScore}}</strong>
+</footer>
+</main>
+</body>
+</html>
+]],displayMath:[['\\\\[','\\\\]'],['$','$']]},svg:{fontCache:'global'},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
 <body>
 <main class="paper">
