@@ -514,10 +514,20 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     userId: user.role === "student" ? user._id : undefined,
     localDate: parsed.data.localDate,
     studentProfileContext,
+    articleWriterContext: examGenerationMode ? [
+      "حالت طراحی آزمون فعال است. فقط JSON معتبر برگردان؛ هیچ متن یا Markdown بیرون JSON ننویس.",
+      'ساختار: {"examTitle":string,"subject":string,"grade":string,"field":string,"duration":string,"totalScore":number,"questions":[{"number":number,"text":string,"score":number,"section":string,"answerLines":number}]}',
+      "برای نسخه اولیه ۵ سؤال تشریحی بساز؛ اگر تعداد، بارم یا زمان مشخص نیست، ۵ سؤال، ۲۰ نمره و ۶۰ دقیقه پیش‌فرض است. جمع نمره سؤال‌ها باید دقیقاً برابر totalScore باشد.",
+      "درس، پایه و فصل درخواستی را رعایت کن. اگر availableFilesContext شامل منبع بازیابی‌شده مرتبط است، آن را مبنای سؤال‌ها قرار بده؛ اگر نیست، وانمود نکن کتاب را بررسی کرده‌ای. سؤال‌ها تازه، روشن، قابل پاسخ و متناسب سطح باشند؛ پاسخ‌ها را داخل برگه ننویس.",
+      "اگر درس مشخص نشده، به‌جای آزمون فقط JSON با کلید clarification و یک سؤال کوتاه فارسی برگردان."
+    ].join("\n") : undefined,
   };
+
   const aiResult = exactTodayRead
     ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
-    : selectedProvider === "groq"
+    : examGenerationMode
+      ? await generateGeminiReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
+      : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
         ? await generateOpenRouterReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? "nvidia/nemotron-3-ultra-550b-a55b:free") as typeof OPENROUTER_MODEL_IDS[number])
@@ -589,7 +599,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     reply,
     ...(planProposal ? { planProposal } : {}),
     ...(planDeletionProposal ? { planDeletionProposal } : {}),
-    model: selectedProvider,
+    ...(examPaper ? { examPaper } : {}),
+    model: examGenerationMode ? "gemini" : selectedProvider,
     conversationId,
     title,
   });
