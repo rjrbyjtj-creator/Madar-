@@ -576,7 +576,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
-  const selectedProvider = examGenerationMode ? "gemini" : parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
+  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
   const conversationDocuments = (conversation.documents ?? []).map((document) => ({
     fileUri: String(document.uri),
     mimeType: String(document.mimeType || "application/pdf"),
@@ -626,7 +626,15 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const aiResult = exactTodayRead
     ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
     : examGenerationMode
-      ? await generateGeminiReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
+      ? selectedProvider === "groq"
+        ? await generateGroqReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
+        : selectedProvider === "openrouter"
+          ? await generateOpenRouterReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? OPENROUTER_MODEL_IDS[0]) as typeof OPENROUTER_MODEL_IDS[number])
+          : selectedProvider === "cloudflare"
+            ? await generateCloudflareReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
+            : selectedProvider === "huggingface"
+              ? await generateHuggingFaceReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
+              : await generateGeminiReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
