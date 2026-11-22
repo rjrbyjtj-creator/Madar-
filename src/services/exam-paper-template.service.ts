@@ -7,6 +7,8 @@ export interface ExamPaperQuestion {
   score: number;
   section?: string;
   answerLines?: number;
+  figureSvg?: string;
+  figureAlt?: string;
 }
 
 export interface ExamPaperData {
@@ -45,6 +47,48 @@ function renderQuestionText(value: string): string {
     if (part.startsWith("$") && part.endsWith("$")) return '<span class="math-inline">\\(' + part.slice(1, -1) + '\\)</span>';
     return escapeHtml(part).replace(/\r?\n/g, "<br>");
   }).join("");
+}
+
+const allowedSvgTags = new Set(["svg", "g", "line", "path", "rect", "circle", "ellipse", "polygon", "polyline", "text", "tspan", "defs", "marker"]);
+const allowedSvgAttributes = new Set([
+  "xmlns", "viewBox", "width", "height", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry",
+  "d", "points", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray",
+  "font-size", "font-family", "font-weight", "text-anchor", "dominant-baseline", "transform", "opacity",
+  "markerWidth", "markerHeight", "refX", "refY", "orient", "markerUnits", "marker-start", "marker-mid", "marker-end"
+]);
+
+function sanitizeQuestionSvg(value: string): string {
+  let source = String(value ?? "").trim().replace(/^`{3}(?:svg|xml)?\s*/i, "").replace(/\s*`{3}$/, "");
+  if (!source || source.length > 16000 || !/<svg\b/i.test(source) || !/<\/svg\s*>/i.test(source)) return "";
+  source = source.replace(/<!--[\s\S]*?-->/g, "");
+  const token = /<\/?([a-z][a-z0-9:-]*)\b([^>]*)>/gi;
+  let output = "";
+  let cursor = 0;
+  for (const match of source.matchAll(token)) {
+    const index = match.index ?? 0;
+    output += escapeHtml(source.slice(cursor, index));
+    cursor = index + match[0].length;
+    const tag = match[1].toLowerCase();
+    if (!allowedSvgTags.has(tag)) continue;
+    if (/^<\//.test(match[0])) {
+      output += `</${tag}>`;
+      continue;
+    }
+    const attrs: string[] = [];
+    const attrPattern = /([a-zA-Z_:][a-zA-Z0-9:_.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+    for (const attr of match[2].matchAll(attrPattern)) {
+      const name = attr[1], normalizedName = name.toLowerCase();
+      let attrValue = attr[2] ?? attr[3] ?? "";
+      if (![...allowedSvgAttributes].some((item) => item.toLowerCase() === normalizedName)) continue;
+      if (normalizedName === "xmlns" && attrValue !== "http://www.w3.org/2000/svg") continue;
+      if (["marker-start", "marker-mid", "marker-end"].includes(normalizedName) && !/^url\(#[a-zA-Z0-9_-]+\)$/.test(attrValue)) continue;
+      if (/url\s*\(|javascript:|data:|https?:|\\/i.test(attrValue) && !["marker-start", "marker-mid", "marker-end"].includes(normalizedName)) continue;
+      attrs.push(`${name}="${escapeHtml(attrValue)}"`);
+    }
+    output += `<${tag}${attrs.length ? " " + attrs.join(" ") : ""}${/\/\s*>$/.test(match[0]) ? "/>" : ">" }`;
+  }
+  output += escapeHtml(source.slice(cursor));
+  return output.includes("<svg") ? output : "";
 }
 
 const iconPaths: Record<string, string> = {
@@ -90,9 +134,14 @@ function renderQuestionBlocks(questions: ExamPaperQuestion[]): string {
       : "";
     const lines = Math.max(1, Math.min(8, Math.floor(question.answerLines ?? 2)));
     const answerLines = '<div class="ans" style="height:' + (lines * 22) + 'px"></div>';
+    const figureSvg = question.figureSvg ? sanitizeQuestionSvg(question.figureSvg) : "";
+    const figureMarkup = figureSvg
+      ? '<figure class="question-figure">' + figureSvg +
+        (question.figureAlt ? '<figcaption>' + escapeHtml(question.figureAlt) + "</figcaption>" : "") + "</figure>"
+      : "";
     return sectionMarkup + '\n<div class="q">' +
       '<div class="n"></div>' +
-      '<div><div class="qt">' + renderQuestionText(question.text) + "</div>" + answerLines + "</div>" +
+      '<div><div class="qt">' + renderQuestionText(question.text) + "</div>" + figureMarkup + answerLines + "</div>" +
       '<div class="b"><span class="bv">' + escapeHtml(faDigits(question.score)) + "</span></div>" +
       "</div>";
   }).join("\n");
