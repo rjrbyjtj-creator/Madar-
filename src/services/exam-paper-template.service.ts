@@ -33,19 +33,18 @@ function escapeHtml(value: unknown): string {
 }
 
 function renderQuestionText(value: string): string {
-  // AI output occasionally wraps mathematical notation in inline code or omits
-  // delimiters around units such as 5 \\mathrm{kg}; normalize both cases.
+  // Strip accidental code formatting and normalize bare TeX units like 5 \mathrm{kg}.
   const source = String(value ?? "")
-    .replace(/`([^`\\n]+)`/g, "$1")
-    .replace(/(^|[\\s(])(\\d+(?:[.,]\\d+)?)\\s*\\\\(?:mathrm|text)\\{([^{}]+)\\}/g,
-      (_match, prefix: string, amount: string, unit: string) => prefix + "\\\\(" + amount + "\\\\,\\\\mathrm{" + unit + "}\\\\)");
-  const parts = source.split(/(\\\\\\([\\s\\S]*?\\\\\\)|\\\\\\[[\\s\\S]*?\\\\\\]|\\$\\$[\\s\\S]*?\\$\\$|\\$(?!\\$)[^\\n$]+\\$)/g);
+    .replace(/\x60([^\x60\n]+)\x60/g, "$1")
+    .replace(/(^|[\s(])(\d+(?:[.,]\d+)?)\s*\\(?:mathrm|text)\{([^{}]+)\}/g,
+      (_match, prefix: string, amount: string, unit: string) => prefix + "\\(" + amount + "\\,\\mathrm{" + unit + "}\\)");
+  const parts = source.split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\$(?!\$)[^\n$]+\$)/g);
   return parts.map((part) => {
-    if (part.startsWith("\\\\(") && part.endsWith("\\\\)")) return `<span class="math-inline">${part}</span>`;
-    if (part.startsWith("\\\\[") && part.endsWith("\\\\]")) return `<div class="math-display">${part}</div>`;
-    if (part.startsWith("$") && part.endsWith("$")) return `<div class="math-display">\\\\[${part.slice(2, -2)}\\\\]</div>`;
-    if (part.startsWith("$") && part.endsWith("$")) return `<span class="math-inline">\\\\(${part.slice(1, -1)}\\\\)</span>`;
-    return escapeHtml(part).replace(/\\r?\\n/g, "<br>");
+    if (part.startsWith("\\(") && part.endsWith("\\)")) return '<span class="math-inline">' + part + '</span>';
+    if (part.startsWith("\\[") && part.endsWith("\\]")) return '<div class="math-display">' + part + '</div>';
+    if (part.startsWith("$$") && part.endsWith("$$")) return '<div class="math-display">\\[' + part.slice(2, -2) + '\\]</div>';
+    if (part.startsWith("$") && part.endsWith("$")) return '<span class="math-inline">\\(' + part.slice(1, -1) + '\\)</span>';
+    return escapeHtml(part).replace(/\r?\n/g, "<br>");
   }).join("");
 }
 
