@@ -534,7 +534,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   let examPaper: { filename: string; html: string } | undefined;
   let reply = aiResult.text;
   if (examGenerationMode) {
-    const raw = reply.trim().replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "");
+    const raw = reply.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
     try {
       const parsedOutput = JSON.parse(raw) as unknown;
       if (parsedOutput && typeof parsedOutput === "object" && "clarification" in parsedOutput) {
@@ -545,7 +545,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         const sum = validated.data.questions.reduce((total, question) => total + question.score, 0);
         if (Math.abs(sum - validated.data.totalScore) > 0.001) throw new Error("جمع بارم سؤال‌ها با بارم کل برابر نیست.");
         const html = await renderExamPaperHtml({ ...validated.data, studentName: user.name ?? "" });
-        const slug = validated.data.subject.replace(/[^\\p{L}\\p{N}-]+/gu, "-").slice(0, 36) || "exam";
+        const slug = validated.data.subject.replace(/[^\p{L}\p{N}-]+/gu, "-").slice(0, 36) || "exam";
         examPaper = { filename: `madar-${slug}-exam.html`, html };
         reply = `آزمون **${validated.data.subject}** با ${validated.data.questions.length} سؤال تشریحی آماده شد. بارم کل: ${validated.data.totalScore} نمره. فایل را از پیوست زیر دریافت کن.\\n\\nاین نسخه اولیه است؛ قبل از استفاده رسمی، سؤال‌ها و بارم‌بندی را با دبیر بررسی کن.`;
       }
