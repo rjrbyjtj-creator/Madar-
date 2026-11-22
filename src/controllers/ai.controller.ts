@@ -14,6 +14,7 @@ import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openr
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
 import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
 import { retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
+import { renderExamPaperHtml } from "../services/exam-paper-template.service.js";
 
 const messageSchema = z.object({
   role: z.enum(["user", "model"]),
@@ -35,6 +36,27 @@ const chatSchema = z.object({
 });
 
 type AuthUser = { _id: mongoose.Types.ObjectId; name?: string; role?: string; schoolName?: string; officialSchoolName?: string; grade?: string; fieldOfStudy?: string };
+
+function isExamGenerationRequest(message: string): boolean {
+  return /(آزمون|امتحان|نمونه.?سؤال|نمونه.?سوال)/i.test(message) &&
+    /(طراحی|طرح|بساز|تهیه|آماده|تولید|درست کن)/i.test(message);
+}
+
+const generatedExamSchema = z.object({
+  examTitle: z.string().trim().min(1).max(120),
+  subject: z.string().trim().min(1).max(80),
+  grade: z.string().trim().min(1).max(80),
+  field: z.string().trim().max(80).optional(),
+  duration: z.string().trim().min(1).max(40),
+  totalScore: z.number().positive().max(100),
+  questions: z.array(z.object({
+    number: z.number().int().min(1).max(20),
+    text: z.string().trim().min(1).max(2000),
+    score: z.number().positive().max(20),
+    section: z.string().trim().max(80).optional(),
+    answerLines: z.number().int().min(1).max(8).optional(),
+  })).min(3).max(12),
+});
 
 function isPlannerReviewRequest(message: string): boolean {
   return /(برنامه|پلن).{0,45}(من|م|امروز|این هفته|ببین|بررسی|تحلیل|نظر|چطوره|چطور)|نظر.{0,20}(برنامه|پلن)|تحلیل.{0,20}(برنامه|پلن)/i.test(message);
@@ -434,7 +456,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
-  const studyFilesContext = isStudyFilesRequest(latestUserMessage)
+  const examGenerationMode = isExamGenerationRequest(latestUserMessage);\n  const studyFilesContext = isStudyFilesRequest(latestUserMessage)
     ? await buildStudyFilesContext()
     : undefined;
   const textbookContext = await retrieveTextbookContext(latestUserMessage);
@@ -509,7 +531,29 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
               (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number],
             );
 
+  let examPaper: { filename: string; html: string } | undefined;
   let reply = aiResult.text;
+  if (examGenerationMode) {
+    const raw = reply.trim().replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "");
+    try {
+      const parsedOutput = JSON.parse(raw) as unknown;
+      if (parsedOutput && typeof parsedOutput === "object" && "clarification" in parsedOutput) {
+        reply = String((parsedOutput as { clarification: unknown }).clarification);
+      } else {
+        const validated = generatedExamSchema.safeParse(parsedOutput);
+        if (!validated.success) throw new Error("ساختار خروجی آزمون معتبر نیست.");
+        const sum = validated.data.questions.reduce((total, question) => total + question.score, 0);
+        if (Math.abs(sum - validated.data.totalScore) > 0.001) throw new Error("جمع بارم سؤال‌ها با بارم کل برابر نیست.");
+        const html = await renderExamPaperHtml({ ...validated.data, studentName: user.name ?? "" });
+        const slug = validated.data.subject.replace(/[^\\p{L}\\p{N}-]+/gu, "-").slice(0, 36) || "exam";
+        examPaper = { filename: `madar-${slug}-exam.html`, html };
+        reply = `آزمون **${validated.data.subject}** با ${validated.data.questions.length} سؤال تشریحی آماده شد. بارم کل: ${validated.data.totalScore} نمره. فایل را از پیوست زیر دریافت کن.\\n\\nاین نسخه اولیه است؛ قبل از استفاده رسمی، سؤال‌ها و بارم‌بندی را با دبیر بررسی کن.`;
+      }
+    } catch (error) {
+      console.error("[EXAM] generation/validation failed:", error instanceof Error ? error.message : error);
+      reply = "نتوانستم خروجی آزمون را با قالب مدار بسازم. لطفاً درخواست را دوباره بفرست و درس، پایه و فصل را مشخص کن.";
+    }
+  }
   let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
   const planDeletionProposal = aiResult.planDeletionProposal;
   const draftMatch = reply.match(/<MADAR_PLAN_DRAFT>([\s\S]*?)<\/MADAR_PLAN_DRAFT>/);
