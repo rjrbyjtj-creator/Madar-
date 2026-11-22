@@ -77,6 +77,50 @@ const generatedExamSchema = z.object({
   })).min(3).max(12),
 });
 
+function parseExamJsonCandidate(candidate: string): unknown {
+  try {
+    return JSON.parse(candidate) as unknown;
+  } catch (firstError) {
+    // Repair invalid backslash escapes emitted by models for TeX such as \( ... \).
+    let repaired = "";
+    let inString = false;
+    for (let i = 0; i < candidate.length; i += 1) {
+      const char = candidate[i];
+      if (!inString) {
+        repaired += char;
+        if (char === '"') inString = true;
+        continue;
+      }
+      if (char === '"') {
+        repaired += char;
+        inString = false;
+        continue;
+      }
+      if (char === "\\") {
+        const next = candidate[i + 1] ?? "";
+        const validSimpleEscape = /["\\/bfnrt]/.test(next);
+        const validUnicodeEscape = next === "u" && /^[0-9a-fA-F]{4}$/.test(candidate.slice(i + 2, i + 6));
+        if (validSimpleEscape || validUnicodeEscape) {
+          repaired += char + next;
+          i += 1;
+        } else {
+          repaired += "\\\\";
+        }
+        continue;
+      }
+      if (char === "\n") repaired += "\\n";
+      else if (char === "\r") repaired += "\\r";
+      else if (char === "\t") repaired += "\\t";
+      else repaired += char;
+    }
+    try {
+      return JSON.parse(repaired) as unknown;
+    } catch {
+      throw firstError;
+    }
+  }
+}
+
 function extractExamJson(raw: string): unknown {
   const cleaned = raw.trim()
     .replace(/^\uFEFF/, "")
@@ -84,7 +128,7 @@ function extractExamJson(raw: string): unknown {
     .replace(/\s*\x60{3}$/, "")
     .trim();
   try {
-    return JSON.parse(cleaned) as unknown;
+    return parseExamJsonCandidate(cleaned);
   } catch {
     const start = cleaned.indexOf("{");
     if (start < 0) throw new Error("خروجی مدل JSON نداشت.");
@@ -103,7 +147,7 @@ function extractExamJson(raw: string): unknown {
       else if (char === "{") depth += 1;
       else if (char === "}") {
         depth -= 1;
-        if (depth === 0) return JSON.parse(cleaned.slice(start, i + 1)) as unknown;
+        if (depth === 0) return parseExamJsonCandidate(cleaned.slice(start, i + 1));
       }
     }
     throw new Error("JSON خروجی ناقص بود.");
