@@ -310,8 +310,8 @@ export async function generateGeminiReply(
             })),
             ...(message.screenFrame ? [{
               inlineData: {
-                mimeType: message.screenFrame.match(/^data:(image\\/(?:jpeg|webp|png));base64,/)?.[1] ?? "image/jpeg",
-                data: message.screenFrame.replace(/^data:image\\/(?:jpeg|webp|png);base64,/, ""),
+                mimeType: message.screenFrame.match(/^data:(image\/(?:jpeg|webp|png));base64,/)?.[1] ?? "image/jpeg",
+                data: message.screenFrame.replace(/^data:image\/(?:jpeg|webp|png);base64,/, ""),
               },
             }] : []),
           ]
