@@ -24,7 +24,7 @@ const messageSchema = z.object({
 
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
-  attachmentId: z.string().optional()
+  attachmentId: z.string().optional(),
   model: z.enum(["gemini", "groq", "grok", "openrouter", "cloudflare", "huggingface"]).optional(),
   modelId: z.string().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
