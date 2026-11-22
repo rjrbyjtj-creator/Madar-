@@ -32,6 +32,23 @@ function escapeHtml(value: unknown): string {
   })[char] ?? char);
 }
 
+function renderQuestionText(value: string): string {
+  // AI output occasionally wraps mathematical notation in inline code or omits
+  // delimiters around units such as 5 \\mathrm{kg}; normalize both cases.
+  const source = String(value ?? "")
+    .replace(/`([^`\\n]+)`/g, "$1")
+    .replace(/(^|[\\s(])(\\d+(?:[.,]\\d+)?)\\s*\\\\(?:mathrm|text)\\{([^{}]+)\\}/g,
+      (_match, prefix: string, amount: string, unit: string) => prefix + "\\\\(" + amount + "\\\\,\\\\mathrm{" + unit + "}\\\\)");
+  const parts = source.split(/(\\\\\\([\\s\\S]*?\\\\\\)|\\\\\\[[\\s\\S]*?\\\\\\]|\\$\\$[\\s\\S]*?\\$\\$|\\$(?!\\$)[^\\n$]+\\$)/g);
+  return parts.map((part) => {
+    if (part.startsWith("\\\\(") && part.endsWith("\\\\)")) return `<span class="math-inline">${part}</span>`;
+    if (part.startsWith("\\\\[") && part.endsWith("\\\\]")) return `<div class="math-display">${part}</div>`;
+    if (part.startsWith("$") && part.endsWith("$")) return `<div class="math-display">\\\\[${part.slice(2, -2)}\\\\]</div>`;
+    if (part.startsWith("$") && part.endsWith("$")) return `<span class="math-inline">\\\\(${part.slice(1, -1)}\\\\)</span>`;
+    return escapeHtml(part).replace(/\\r?\\n/g, "<br>");
+  }).join("");
+}
+
 function renderQuestionBlocks(questions: ExamPaperQuestion[]): string {
   let currentSection = "";
   return questions.map((question) => {
@@ -44,7 +61,7 @@ function renderQuestionBlocks(questions: ExamPaperQuestion[]): string {
     return `${sectionMarkup}
 <div class="question">
   <div class="question-number">${escapeHtml(question.number)}</div>
-  <div class="question-body"><div class="question-text">${escapeHtml(question.text)}</div><div class="answer-lines">${answerLines}</div></div>
+  <div class="question-body"><div class="question-text">${renderQuestionText(question.text)}</div><div class="answer-lines">${answerLines}</div></div>
   <div class="question-score">${escapeHtml(question.score)}</div>
 </div>`;
   }).join("\n");
