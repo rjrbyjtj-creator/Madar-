@@ -479,7 +479,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
-  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
+  const selectedProvider = examGenerationMode ? "gemini" : parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
   const conversationDocuments = (conversation.documents ?? []).map((document) => ({
     fileUri: String(document.uri),
     mimeType: String(document.mimeType || "application/pdf"),
