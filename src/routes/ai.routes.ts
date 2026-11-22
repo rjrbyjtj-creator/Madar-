@@ -10,6 +10,7 @@ import {
 } from "../controllers/ai.controller.js";
 import { getSharedConversation, createConversationShare } from "../controllers/share.controller.js";
 import { synthesizeSpeech } from "../controllers/speech.controller.js";
+import { renderExamPaper } from "../controllers/exam-paper.controller.js";
 import { createLiveToken, saveVoiceTurn } from "../controllers/live.controller.js";
 import { requireAuth } from "../middlewares/auth.js";
 import { aiChatLimiter, aiSpeechLimiter, aiLiveTokenLimiter, aiVoiceTurnLimiter } from "../middlewares/rateLimit.js";
@@ -25,6 +26,7 @@ aiRouter.post("/conversations/:id/pin", requireAuth, toggleConversationPin);
 aiRouter.post("/conversations/:id/share", requireAuth, createConversationShare);
 aiRouter.post("/documents", requireAuth, aiChatLimiter, express.raw({ type: ["application/pdf", "image/jpeg", "image/png", "image/webp"], limit: "15mb" }), uploadChatDocument);
 aiRouter.post("/chat", requireAuth, aiChatLimiter, chatWithAI);
+aiRouter.post("/exams/render", requireAuth, aiChatLimiter, express.json({ limit: "256kb" }), renderExamPaper);
 aiRouter.post("/speech", requireAuth, aiSpeechLimiter, synthesizeSpeech);
 aiRouter.post("/voice/token", requireAuth, aiLiveTokenLimiter, createLiveToken);
 aiRouter.post("/voice/turn", requireAuth, aiVoiceTurnLimiter, saveVoiceTurn);
