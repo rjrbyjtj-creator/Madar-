@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import type { Request, Response } from "express";
 import { Conversation } from "../models/Conversation.js";
+import { ChatAttachment } from "../models/ChatAttachment.js";
 import { Plan } from "../models/Plan.js";
 import { StudyFile } from "../models/StudyFile.js";
 import { StudentAcademicHistory } from "../models/StudentAcademicHistory.js";
@@ -23,6 +24,7 @@ const messageSchema = z.object({
 
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
+  attachmentId: z.string().optional()
   model: z.enum(["gemini", "groq", "grok", "openrouter", "cloudflare", "huggingface"]).optional(),
   modelId: z.string().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
@@ -465,10 +467,12 @@ export async function uploadChatDocument(req: Request, res: Response): Promise<v
   }
 
   const uploaded = await uploadGeminiFile(buffer, fileName, mimeType);
+  const storedAttachment = await ChatAttachment.create({ user: user._id, conversation: conversation._id, fileName, mimeType, data: buffer, sizeBytes: buffer.length });
   const expiresAt = uploaded.expirationTime
     ? new Date(uploaded.expirationTime)
     : new Date(Date.now() + 48 * 60 * 60 * 1000);
   conversation.documents.push({
+    attachmentId: storedAttachment._id,
     name: uploaded.name,
     uri: uploaded.uri,
     mimeType: uploaded.mimeType,
@@ -482,6 +486,7 @@ export async function uploadChatDocument(req: Request, res: Response): Promise<v
     ok: true,
     conversationId: String(conversation._id),
     documentId: uploaded.name,
+    attachmentId: String(storedAttachment._id),
     fileName,
     mimeType,
     expiresAt,
@@ -694,9 +699,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     reply = reply.replace(draftMatch[0], "").trim();
   }
 
+  const attachedDocument = parsed.data.attachmentId ? await ChatAttachment.findOne({ _id: parsed.data.attachmentId, user: user._id, conversation: conversation._id }).select("_id fileName mimeType").lean() : null;
   conversation.messages.push(
-    { role: "user", content: latestUserMessage, createdAt: new Date() },
-    { role: "model", content: reply, createdAt: new Date() },
+    { role: "user", content: latestUserMessage, createdAt: new Date(), ...(attachedDocument ? { attachment: { id: attachedDocument._id, fileName: attachedDocument.fileName, mimeType: attachedDocument.mimeType } } : {}) },
+    { role: "model", content: reply, createdAt: new Date(), ...(examPaper ? { examPaper } : {}) },
   );
   if (conversation.messages.length <= 2) {
     conversation.title = latestUserMessage.slice(0, 72);
@@ -757,11 +763,27 @@ export async function getConversation(req: Request, res: Response): Promise<void
         role: item.role,
         content: item.content,
         createdAt: item.createdAt,
+        ...(item.examPaper ? { examPaper: item.examPaper } : {}),
+        ...(item.attachment ? { attachment: { ...item.attachment, url: "/api/ai/attachments/" + String(item.attachment.id) } } : {}),
       })),
+      documents: (conversation.documents ?? []).map((doc) => ({ attachmentId: doc.attachmentId ? String(doc.attachmentId) : null, fileName: doc.fileName, mimeType: doc.mimeType })),
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     },
   });
+}
+
+export async function getChatAttachment(req: Request, res: Response): Promise<void> {
+  const user = res.locals.user as AuthUser;
+  const id = String(req.params.id ?? "");
+  if (!mongoose.isValidObjectId(id)) throw new AppError(400, "INVALID_ATTACHMENT_ID", "شناسه فایل معتبر نیست.");
+  const file = await ChatAttachment.findOne({ _id: id, user: user._id }).select("fileName mimeType data sizeBytes").lean();
+  if (!file) throw new AppError(404, "ATTACHMENT_NOT_FOUND", "فایل پیوست پیدا نشد.");
+  res.setHeader("Content-Type", file.mimeType);
+  res.setHeader("Content-Length", String(file.sizeBytes));
+  res.setHeader("Content-Disposition", "inline; filename=" + encodeURIComponent(file.fileName));
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.send(file.data);
 }
 
 export async function deleteConversation(req: Request, res: Response): Promise<void> {
