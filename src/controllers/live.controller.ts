@@ -42,6 +42,10 @@ export async function createLiveToken(
   const personaSchema = z.enum(["balanced","friendly","buddy","witty"]);
   const parsedPersona = personaSchema.safeParse(req.body?.persona ?? "buddy");
   const persona = parsedPersona.success ? parsedPersona.data : "buddy";
+  // Voice is locked into the ephemeral Live token; client-side config alone cannot override it.
+  const voiceSchema = z.enum(["Algenib", "Kore"]);
+  const parsedVoice = voiceSchema.safeParse(req.body?.voiceName ?? "Algenib");
+  const voiceName = parsedVoice.success ? parsedVoice.data : "Algenib";
   const personaInstructions = {
     balanced: "لحن متعادل، آموزشی، دقیق و محترمانه داشته باش.",
     friendly: "با لحنی گرم، صمیمی و محاوره‌ای صحبت کن؛ مثل یک گفتگوی طبیعی روزمره، اما دقیق و مؤدب.",
@@ -116,7 +120,7 @@ export async function createLiveToken(
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: {
-                  voiceName: "Kore",
+                  voiceName,
                 },
               },
             },
