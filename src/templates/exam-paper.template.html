@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{documentTitle}}</title>
+<style>
+@page{size:A4;margin:10mm}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#fff;color:#171717;font-family:Tahoma,"Vazirmatn",Arial,sans-serif}
+body{font-size:11pt;line-height:1.8}
+.paper{width:190mm;margin:0 auto}
+.exam-header{min-height:25mm;background:#151515;color:#fff;border-radius:4mm;padding:4mm 5mm;display:grid;grid-template-columns:1fr 1.6fr 1fr;align-items:center;gap:3mm}
+.brand{display:flex;align-items:center;gap:3mm;font-weight:700;font-size:15pt}
+.brand-mark{width:13mm;height:13mm;border:1.5mm solid #fff;border-radius:3mm;display:grid;place-items:center;font-size:19pt;line-height:1}
+.brand small{display:block;font-size:7pt;font-weight:400;color:#c9c9c9}
+.exam-title{text-align:center}
+.exam-title strong{display:block;font-size:16pt}
+.exam-title span{font-size:9pt;color:#ddd}
+.exam-meta{font-size:9pt;display:grid;gap:1mm;text-align:left}
+.exam-meta div{display:flex;justify-content:space-between;gap:4mm;border-bottom:1px solid #555;padding-bottom:1mm}
+.student-info{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin:2mm 0}
+.info-cell{border:1px solid #ddd;border-radius:3mm;min-height:11mm;padding:1.5mm 3mm}
+.info-cell label{display:block;font-size:7.5pt;color:#777;line-height:1.4}
+.info-cell span{display:block;min-height:5mm;font-weight:600;font-size:9pt}
+.questions{border:1px solid #ddd;border-radius:3mm;overflow:hidden}
+.table-head,.question{display:grid;grid-template-columns:15mm 1fr 12mm}
+.table-head{background:#f5f5f5;font-size:8.5pt;font-weight:700;text-align:center;border-bottom:1px solid #ddd}
+.table-head>div,.question>div{padding:2mm;border-left:1px solid #ddd}
+.table-head>div:last-child,.question>div:last-child{border-left:0}
+.table-head .question-label{text-align:right}
+.section-title{background:#f1f1f1;padding:1.5mm 3mm;font-weight:700;font-size:9.5pt;border-bottom:1px solid #ddd;break-after:avoid}
+.question{min-height:23mm;border-bottom:1px solid #ddd;break-inside:avoid}
+.question:last-child{border-bottom:0}
+.question-number,.question-score{display:flex;justify-content:center;align-items:flex-start;font-weight:700;text-align:center}
+.question-body{padding:2mm 3mm!important}
+.question-text{min-height:8mm;white-space:pre-wrap;font-size:10pt}
+.answer-lines{margin-top:2mm;display:grid;gap:2.5mm}
+.answer-line{height:4mm;border-bottom:1px solid #e5e5e5}
+.exam-footer{margin-top:2mm;border:1px solid #ddd;border-radius:3mm;background:#f7f7f7;padding:2mm 4mm;display:flex;justify-content:space-between;align-items:center;font-size:8.5pt}
+.muted{color:#777}
+@media print{body{background:#fff}.paper{width:auto}.exam-header,.exam-footer,.section-title{print-color-adjust:exact;-webkit-print-color-adjust:exact}.question{break-inside:avoid}}
+</style>
+</head>
+<body>
+<main class="paper">
+<header class="exam-header">
+  <div class="brand"><div class="brand-mark">M</div><div>مدار<small>دستیار آموزشی</small></div></div>
+  <div class="exam-title"><strong>{{examTitle}}</strong><span>{{grade}} {{field}}</span></div>
+  <div class="exam-meta">
+    <div><span>بارم کل</span><b>{{totalScore}}</b></div>
+    <div><span>مدت آزمون</span><b>{{duration}}</b></div>
+    <div><span>صفحه</span><b>۱ از {{pageCount}}</b></div>
+  </div>
+</header>
+<section class="student-info">
+  <div class="info-cell"><label>نام و نام خانوادگی</label><span>{{studentName}}</span></div>
+  <div class="info-cell"><label>مدرسه</label><span>{{school}}</span></div>
+  <div class="info-cell"><label>کلاس</label><span>{{className}}</span></div>
+  <div class="info-cell"><label>نام دبیر</label><span>{{teacher}}</span></div>
+  <div class="info-cell"><label>نام درس</label><span>{{subject}}</span></div>
+  <div class="info-cell"><label>پایه</label><span>{{grade}}</span></div>
+  <div class="info-cell"><label>تاریخ آزمون</label><span>{{examDate}}</span></div>
+  <div class="info-cell"><label>رشته</label><span>{{field}}</span></div>
+</section>
+<section class="questions">
+  <div class="table-head"><div>ردیف</div><div class="question-label">شرح سؤال</div><div>بارم</div></div>
+  {{questionBlocks}}
+</section>
+<footer class="exam-footer">
+  <strong>مدار | آزمون آموزشی</strong>
+  <span class="muted">موفق و پیروز باشید</span>
+  <strong>جمع بارم: {{totalScore}}</strong>
+</footer>
+</main>
+</body>
+</html>
