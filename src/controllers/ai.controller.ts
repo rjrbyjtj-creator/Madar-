@@ -42,21 +42,71 @@ function isExamGenerationRequest(message: string): boolean {
     /(طراحی|طرح|بساز|تهیه|آماده|تولید|درست کن)/i.test(message);
 }
 
+function normalizeExamNumber(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const normalized = value
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
+    .replace(/[٫،]/g, ".")
+    .replace(/,/g, ".")
+    .trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : value;
+}
+
+const examInteger = (min: number, max: number) =>
+  z.preprocess(normalizeExamNumber, z.number().int().min(min).max(max));
+const examPositiveNumber = (max: number) =>
+  z.preprocess(normalizeExamNumber, z.number().positive().max(max));
+
 const generatedExamSchema = z.object({
   examTitle: z.string().trim().min(1).max(120),
   subject: z.string().trim().min(1).max(80),
   grade: z.string().trim().min(1).max(80),
   field: z.string().trim().max(80).optional(),
   duration: z.string().trim().min(1).max(40),
-  totalScore: z.number().positive().max(100),
+  totalScore: examPositiveNumber(100),
   questions: z.array(z.object({
-    number: z.number().int().min(1).max(20),
+    number: examInteger(1, 20),
     text: z.string().trim().min(1).max(2000),
-    score: z.number().positive().max(20),
+    score: examPositiveNumber(20),
     section: z.string().trim().max(80).optional(),
-    answerLines: z.number().int().min(1).max(8).optional(),
+    answerLines: examInteger(1, 8).optional(),
   })).min(3).max(12),
 });
+
+function extractExamJson(raw: string): unknown {
+  const cleaned = raw.trim()
+    .replace(/^\\uFEFF/, "")
+    .replace(/^\\x60{3}(?:json)?\\s*/i, "")
+    .replace(/\\s*\\x60{3}$/, "")
+    .trim();
+  try {
+    return JSON.parse(cleaned) as unknown;
+  } catch {
+    const start = cleaned.indexOf("{");
+    if (start < 0) throw new Error("خروجی مدل JSON نداشت.");
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < cleaned.length; i += 1) {
+      const char = cleaned[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\\\") escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') inString = true;
+      else if (char === "{") depth += 1;
+      else if (char === "}") {
+        depth -= 1;
+        if (depth === 0) return JSON.parse(cleaned.slice(start, i + 1)) as unknown;
+      }
+    }
+    throw new Error("JSON خروجی ناقص بود.");
+  }
+}
 
 function isPlannerReviewRequest(message: string): boolean {
   return /(برنامه|پلن).{0,45}(من|م|امروز|این هفته|ببین|بررسی|تحلیل|نظر|چطوره|چطور)|نظر.{0,20}(برنامه|پلن)|تحلیل.{0,20}(برنامه|پلن)/i.test(message);
@@ -521,7 +571,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       "نسخه پایه: دقیقاً ۵ سؤال تشریحی، بارم کل ۲۰ نمره و زمان ۶۰ دقیقه؛ مگر اینکه کاربر تعداد، بارم یا زمان دیگری خواسته باشد. نمره هر سؤال مثبت باشد و مجموع نمره‌ها دقیقاً برابر totalScore شود.",
       "نام درس، پایه، رشته، فصل و محدوده‌ای را که کاربر گفته دقیق رعایت کن. صورت هر سؤال باید کامل، روشن، مستقل و قابل پاسخ باشد. پاسخ یا راه‌حل را داخل برگه ننویس. برای هر سؤال ۲ تا ۴ خط پاسخ پیشنهاد بده. واحدها را به زبان طبیعی و خوانا بنویس (مثلاً «۵ کیلوگرم»)، نه به شکل کد. اگر نماد یا فرمول لازم است از TeX درون‌خطی با delimiters استاندارد \\( ... \\) استفاده کن؛ مثلاً \\(5\\,\\mathrm{kg}\\). هرگز فرمول را داخل backticks یا code fence نگذار و هیچ قطعه کدی تولید نکن.",
       "اگر availableFilesContext منبع بازیابی‌شده مرتبط دارد، سؤال‌ها را بر پایه همان منبع طراحی کن و جزئیات خارج از آن را به‌عنوان محتوای کتاب معرفی نکن. اگر منبعی بازیابی نشده، ادعا نکن کتاب یا بانک نمونه‌سؤال را بررسی کرده‌ای؛ فقط از دانش آموزشی معتبر خودت سؤال بساز.",
-      "در صورت وجود منبع، پوشش متوازن مباحث، تنوع تیپ سؤال و دشواری تدریجی را رعایت کن. سؤال‌ها را عیناً از نمونه‌سؤال‌ها کپی نکن.",
+      "عنوان بخش یا سرفصل آماده و از پیش‌تعیین‌شده اضافه نکن؛ فقط اگر کاربر بخش‌بندی خواست یا برای فهم سؤال ضروری بود، section بده. در غیر این صورت section را حذف کن. در صورت وجود منبع، پوشش متوازن مباحث، تنوع تیپ سؤال و دشواری تدریجی را رعایت کن. سؤال‌ها را عیناً از نمونه‌سؤال‌ها کپی نکن.",
       "اگر درس مشخص نیست، فقط JSON با کلید clarification و یک سؤال کوتاه فارسی برگردان. اگر پایه مشخص نیست ولی از پروفایل دانش‌آموز قابل تشخیص است، از همان پایه استفاده کن؛ در غیر این صورت سؤال روشن‌کننده بپرس."
     ].join("\n") : undefined,
   };
@@ -547,24 +597,31 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   let examPaper: { filename: string; html: string } | undefined;
   let reply = aiResult.text;
   if (examGenerationMode) {
-    const raw = reply.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
     try {
-      const parsedOutput = JSON.parse(raw) as unknown;
+      const parsedOutput = extractExamJson(reply);
       if (parsedOutput && typeof parsedOutput === "object" && "clarification" in parsedOutput) {
         reply = String((parsedOutput as { clarification: unknown }).clarification);
       } else {
         const validated = generatedExamSchema.safeParse(parsedOutput);
-        if (!validated.success) throw new Error("ساختار خروجی آزمون معتبر نیست.");
+        if (!validated.success) {
+          console.error("[EXAM] output schema issues:", JSON.stringify(validated.error.issues).slice(0, 2500));
+          throw new Error("ساختار داده‌های آزمون با قالب مورد انتظار هماهنگ نبود.");
+        }
         const sum = validated.data.questions.reduce((total, question) => total + question.score, 0);
-        if (Math.abs(sum - validated.data.totalScore) > 0.001) throw new Error("جمع بارم سؤال‌ها با بارم کل برابر نیست.");
-        const html = await renderExamPaperHtml({ ...validated.data, studentName: user.name ?? "" });
+        if (Math.abs(sum - validated.data.totalScore) > 0.001) {
+          console.error("[EXAM] score mismatch:", { sum, totalScore: validated.data.totalScore });
+          throw new Error("جمع بارم سؤال‌ها با بارم کل برابر نیست.");
+        }
+        const html = await renderExamPaperHtml({ ...validated.data, studentName: "" });
         const slug = validated.data.subject.replace(/[^\p{L}\p{N}-]+/gu, "-").slice(0, 36) || "exam";
-        examPaper = { filename: `madar-${slug}-exam.html`, html };
-        reply = `آزمون **${validated.data.subject}** با ${validated.data.questions.length} سؤال تشریحی آماده شد. بارم کل: ${validated.data.totalScore} نمره. فایل را از پیوست زیر دریافت کن.\\n\\nاین نسخه اولیه است؛ قبل از استفاده رسمی، سؤال‌ها و بارم‌بندی را با دبیر بررسی کن.`;
+        examPaper = { filename: "madar-" + slug + "-exam.html", html };
+        reply = "آزمون **" + validated.data.subject + "** با " + validated.data.questions.length +
+          " سؤال تشریحی آماده شد. بارم کل: " + validated.data.totalScore +
+          " نمره. پیش‌نمایش و دریافت فایل آماده است.\n\nاین نسخه اولیه است؛ قبل از استفاده رسمی، سؤال‌ها و بارم‌بندی را با دبیر بررسی کن.";
       }
     } catch (error) {
       console.error("[EXAM] generation/validation failed:", error instanceof Error ? error.message : error);
-      reply = "نتوانستم خروجی آزمون را با قالب مدار بسازم. لطفاً درخواست را دوباره بفرست و درس، پایه و فصل را مشخص کن.";
+      reply = "سؤال‌ها تولید شدند، اما ساخت برگه آزمون با مشکل روبه‌رو شد. یک بار دیگر تلاش کن؛ اگر تکرار شد، درخواست را کوتاه‌تر و محدوده درس را دقیق‌تر بنویس.";
     }
   }
   let planProposal: z.infer<typeof planDraftSchema> | undefined = aiResult.planProposal;
