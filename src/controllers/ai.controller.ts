@@ -47,7 +47,7 @@ function normalizeExamNumber(value: unknown): unknown {
   const normalized = value
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
-    .replace(/[٫،]/g, ".")
+    .replace(/[٫،/]/g, ".")
     .replace(/,/g, ".")
     .trim();
   const parsed = Number(normalized);
