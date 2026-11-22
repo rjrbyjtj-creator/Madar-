@@ -8,6 +8,7 @@ export type GeminiMessage = {
   role: "user" | "model";
   content: string;
   attachments?: Array<{ fileUri: string; mimeType: string; fileName: string }>;
+  screenFrame?: string;
 };
 
 const SYSTEM_INSTRUCTION = `
@@ -303,9 +304,17 @@ export async function generateGeminiReply(
     parts: [
       { text: message.content },
       ...(index === window.length - 1
-        ? (message.attachments ?? []).map((attachment) => ({
-            fileData: { fileUri: attachment.fileUri, mimeType: attachment.mimeType },
-          }))
+        ? [
+            ...(message.attachments ?? []).map((attachment) => ({
+              fileData: { fileUri: attachment.fileUri, mimeType: attachment.mimeType },
+            })),
+            ...(message.screenFrame ? [{
+              inlineData: {
+                mimeType: message.screenFrame.match(/^data:(image\\/(?:jpeg|webp|png));base64,/)?.[1] ?? "image/jpeg",
+                data: message.screenFrame.replace(/^data:image\\/(?:jpeg|webp|png);base64,/, ""),
+              },
+            }] : []),
+          ]
         : []),
     ],
   }));
