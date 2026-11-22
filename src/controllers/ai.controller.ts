@@ -28,7 +28,7 @@ const chatSchema = z.object({
   persona: z.enum(["balanced", "friendly", "buddy", "witty"]).optional(),
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   timeZone: z.string().trim().min(1).max(64).optional(),
-  screenFrame: z.string().max(2_800_000).regex(/^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$/).optional(),
+  screenFrame: z.string().max(1_500_000).regex(/^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$/).optional(),
   messages: z.array(messageSchema).min(1).max(12).optional(),
 }).refine((value) => Boolean(value.message || value.messages?.some((item) => item.role === "user")), {
   message: "A user message is required.",
