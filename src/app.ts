@@ -53,7 +53,7 @@ export function createApp() {
   }));
 
   app.use(requestLogger);
-  app.use(express.json({ limit: "40kb" }));
+  app.use(express.json({ limit: "4mb" }));
   app.get("/health", (_req: Request, res: Response) => {
     res.json({
       status: "ok",
