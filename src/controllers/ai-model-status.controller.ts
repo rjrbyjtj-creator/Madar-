@@ -24,7 +24,7 @@ function quotaHeaders(headers: Headers): Quota[] {
   if (tokensLimit !== null || tokensRemaining !== null) result.push({ label: "توکن‌ها", limit: tokensLimit, remaining: tokensRemaining, used: tokensLimit !== null && tokensRemaining !== null ? Math.max(0, tokensLimit - tokensRemaining) : null, reset: headers.get("x-ratelimit-reset-tokens") });
   return result;
 }
-async function probe(url: string, headers: Record<string, string> = {}): Promise<{ response: Response; body: any }> {
+async function probe(url: string, headers: Record<string, string> = {}): Promise<{ response: Awaited<ReturnType<typeof fetch>>; body: any }> {
   const response = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(8000) });
   let body: any = null;
   try { body = await response.json(); } catch { /* provider may return no JSON body */ }
@@ -35,7 +35,7 @@ function modelRows(ids: readonly string[], status: string) {
 }
 async function inspectProvider(input: {
   id: string; name: string; configured: boolean; models: readonly string[];
-  check: () => Promise<{ response: Response; body: any; quota?: Quota[]; message?: string }>;
+  check: () => Promise<{ response: Awaited<ReturnType<typeof fetch>>; body: any; quota?: Quota[]; message?: string }>;
 }): Promise<ProviderStatus> {
   const checkedAt = new Date().toISOString();
   if (!input.configured) return { id: input.id, name: input.name, configured: false, status: "unconfigured", message: "کلید یا اطلاعات اتصال روی سرور تنظیم نشده است.", checkedAt, quota: [], models: modelRows(input.models, "unconfigured") };
