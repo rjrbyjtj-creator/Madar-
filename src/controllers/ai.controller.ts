@@ -456,7 +456,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
-  const examGenerationMode = isExamGenerationRequest(latestUserMessage);\n  const studyFilesContext = isStudyFilesRequest(latestUserMessage)
+  const examGenerationMode = isExamGenerationRequest(latestUserMessage);
+  const studyFilesContext = isStudyFilesRequest(latestUserMessage)
     ? await buildStudyFilesContext()
     : undefined;
   const textbookContext = await retrieveTextbookContext(latestUserMessage);
