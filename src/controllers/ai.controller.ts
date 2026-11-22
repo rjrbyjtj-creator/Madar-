@@ -72,6 +72,8 @@ const generatedExamSchema = z.object({
     score: examPositiveNumber(20),
     section: z.string().trim().max(80).optional(),
     answerLines: examInteger(1, 8).optional(),
+    figureSvg: z.string().max(16000).optional(),
+    figureAlt: z.string().trim().max(180).optional(),
   })).min(3).max(12),
 });
 
@@ -567,9 +569,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     studentProfileContext,
     articleWriterContext: examGenerationMode ? [
       "حالت طراحی آزمون تشریحی فعال است. فقط یک JSON معتبر برگردان؛ هیچ متن، توضیح یا Markdown بیرون JSON ننویس.",
-      'ساختار دقیق: {"examTitle":string,"subject":string,"grade":string,"field":string,"duration":string,"totalScore":number,"questions":[{"number":number,"text":string,"score":number,"section":string,"answerLines":number}]}',
+      'ساختار دقیق: {"examTitle":string,"subject":string,"grade":string,"field":string,"duration":string,"totalScore":number,"questions":[{"number":number,"text":string,"score":number,"section":string,"answerLines":number,"figureSvg":string,"figureAlt":string}]}',
       "نسخه پایه: دقیقاً ۵ سؤال تشریحی، بارم کل ۲۰ نمره و زمان ۶۰ دقیقه؛ مگر اینکه کاربر تعداد، بارم یا زمان دیگری خواسته باشد. نمره هر سؤال مثبت باشد و مجموع نمره‌ها دقیقاً برابر totalScore شود.",
       "نام درس، پایه، رشته، فصل و محدوده‌ای را که کاربر گفته دقیق رعایت کن. صورت هر سؤال باید کامل، روشن، مستقل و قابل پاسخ باشد. پاسخ یا راه‌حل را داخل برگه ننویس. برای هر سؤال ۲ تا ۴ خط پاسخ پیشنهاد بده. واحدها را به زبان طبیعی و خوانا بنویس (مثلاً «۵ کیلوگرم»)، نه به شکل کد. اگر نماد یا فرمول لازم است از TeX درون‌خطی با delimiters استاندارد \\( ... \\) استفاده کن؛ مثلاً \\(5\\,\\mathrm{kg}\\). هرگز فرمول را داخل backticks یا code fence نگذار و هیچ قطعه کدی تولید نکن.",
+      "اگر برای فهم یا حل سؤال وجود شکل، نمودار، مدار، جسم روی سطح شیب‌دار، قرقره، بردار یا محور مختصات لازم است، برای همان سؤال figureSvg و figureAlt تولید کن. figureSvg باید یک SVG کامل و معتبر با viewBox (ترجیحاً 0 0 640 300)، فقط با عناصر هندسی svg/g/line/path/rect/circle/ellipse/polygon/polyline/text/tspan/defs/marker و ویژگی‌های ساده fill/stroke/stroke-width/font-size/text-anchor باشد؛ هیچ script، foreignObject، image، لینک، CSS، رویداد یا کد دیگری ننویس. شکل باید خوانا، دقیق، متناسب با داده‌های سؤال و بدون اطلاعات اضافی باشد. سؤال‌های بدون نیاز به شکل، این دو فیلد را حذف کنند. نمودار داده‌محور باید محور، برچسب و نقاط/منحنی متناسب با داده‌های خود سؤال داشته باشد؛ داده یا برچسب ساختگی اضافه نکن.",
       "اگر availableFilesContext منبع بازیابی‌شده مرتبط دارد، سؤال‌ها را بر پایه همان منبع طراحی کن و جزئیات خارج از آن را به‌عنوان محتوای کتاب معرفی نکن. اگر منبعی بازیابی نشده، ادعا نکن کتاب یا بانک نمونه‌سؤال را بررسی کرده‌ای؛ فقط از دانش آموزشی معتبر خودت سؤال بساز.",
       "عنوان بخش یا سرفصل آماده و از پیش‌تعیین‌شده اضافه نکن؛ فقط اگر کاربر بخش‌بندی خواست یا برای فهم سؤال ضروری بود، section بده. در غیر این صورت section را حذف کن. در صورت وجود منبع، پوشش متوازن مباحث، تنوع تیپ سؤال و دشواری تدریجی را رعایت کن. سؤال‌ها را عیناً از نمونه‌سؤال‌ها کپی نکن.",
       "اگر درس مشخص نیست، فقط JSON با کلید clarification و یک سؤال کوتاه فارسی برگردان. اگر پایه مشخص نیست ولی از پروفایل دانش‌آموز قابل تشخیص است، از همان پایه استفاده کن؛ در غیر این صورت سؤال روشن‌کننده بپرس."
