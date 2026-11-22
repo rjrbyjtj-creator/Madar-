@@ -11,6 +11,7 @@ import {
 import { getSharedConversation, createConversationShare } from "../controllers/share.controller.js";
 import { synthesizeSpeech } from "../controllers/speech.controller.js";
 import { renderExamPaper } from "../controllers/exam-paper.controller.js";
+import { getAIModelStatus } from "../controllers/ai-model-status.controller.js";
 import { createLiveToken, saveVoiceTurn } from "../controllers/live.controller.js";
 import { requireAuth } from "../middlewares/auth.js";
 import { aiChatLimiter, aiSpeechLimiter, aiLiveTokenLimiter, aiVoiceTurnLimiter } from "../middlewares/rateLimit.js";
@@ -18,6 +19,7 @@ import { aiChatLimiter, aiSpeechLimiter, aiLiveTokenLimiter, aiVoiceTurnLimiter 
 export const aiRouter = Router();
 
 aiRouter.get("/conversations/shared/:token", getSharedConversation);
+aiRouter.get("/model-status", requireAuth, getAIModelStatus);
 aiRouter.get("/conversations", requireAuth, listConversations);
 aiRouter.get("/conversations/:id", requireAuth, getConversation);
 aiRouter.delete("/conversations/:id", requireAuth, deleteConversation);
