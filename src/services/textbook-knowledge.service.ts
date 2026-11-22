@@ -10,7 +10,7 @@ const MAX_FILES = 80;
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 12_000_000;
 const CHUNK_TARGET_CHARS = 1800;
-const MAX_CONTEXT_CHUNKS = 7;
+const MAX_CONTEXT_CHUNKS = 10;
 
 type KnowledgeDocument = {
   path: string;
@@ -40,7 +40,10 @@ const STOP_WORDS = new Set([
 ]);
 
 function normalize(value: string): string {
-  return value.toLowerCase()
+  return value
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
+    .toLowerCase()
     .replace(/[يى]/g, "ی").replace(/ك/g, "ک")
     .replace(/[\u064B-\u065F\u0670]/g, "")
     .replace(/[ۀة]/g, "ه")
@@ -168,6 +171,7 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
     }
 
     const chunks = docs.flatMap(splitDocument);
+    console.info("[TEXTBOOK] private knowledge index loaded", { files: docs.length, chunks: chunks.length, bytes: totalBytes, repository: OWNER + "/" + REPOSITORY, branch: BRANCH });
     if (!chunks.length) throw new Error("No Markdown knowledge documents were found in Robo-Knowledge");
     cache = { chunks, expiresAt: Date.now() + CACHE_TTL_MS };
     return chunks;
@@ -181,13 +185,20 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
 }
 
 function scoreChunk(chunk: KnowledgeChunk, queryTokens: string[], normalizedQuestion: string): number {
+  let matched = 0;
   let score = 0;
   for (const token of queryTokens) {
-    if (chunk.tokens.has(token)) score += token.length > 5 ? 2 : 1;
+    if (chunk.tokens.has(token)) {
+      matched += 1;
+      score += token.length >= 6 ? 3 : 1;
+    }
   }
   const heading = normalize(chunk.heading);
-  if (heading && normalizedQuestion.includes(heading)) score += 5;
-  if (chunk.category === "textbook") score += 1;
+  const title = normalize(chunk.title);
+  if (heading && normalizedQuestion.includes(heading)) score += 8;
+  if (title && normalizedQuestion.includes(title)) score += 6;
+  if (queryTokens.length >= 2) score += Math.round((matched / queryTokens.length) * 5);
+  if (chunk.category === "textbook") score += 2;
   return score;
 }
 
@@ -223,7 +234,7 @@ export async function retrieveTextbookContext(question: string): Promise<string 
       ...ranked.map(({ chunk }, index) =>
         "[منبع " + (index + 1) + " | " + chunk.path + " | بخش: " + chunk.heading + "]\n" + chunk.text
       ),
-      "در پاسخ آموزشی، در صورت امکان عنوان فایل و بخش را ذکر کن. میان محتوای بازیابی‌شده، دانش عمومی مدل و استنباط خودت تمایز روشن بگذار.",
+      "در پاسخ آموزشی، عنوان فایل، بخش و شماره صفحه چاپی را از سربرگ‌های صفحه (اگر در قطعه بازیابی‌شده آمده) ذکر کن. شماره صفحه را فقط از متن منبع بردار و هرگز حدس نزن. میان محتوای بازیابی‌شده، دانش عمومی مدل و استنباط خودت تمایز روشن بگذار.",
     ].join("\n\n");
   } catch (error) {
     console.error("[TEXTBOOK] private knowledge retrieval failed:", error instanceof Error ? error.message : error);
