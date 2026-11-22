@@ -764,7 +764,7 @@ export async function getConversation(req: Request, res: Response): Promise<void
         content: item.content,
         createdAt: item.createdAt,
         ...(item.examPaper ? { examPaper: item.examPaper } : {}),
-        ...(item.attachment ? { attachment: { ...item.attachment, url: "/api/ai/attachments/" + String(item.attachment.id) } } : {}),
+        ...(item.attachment ? { attachment: { ...item.attachment, url: "/ai/attachments/" + String(item.attachment.id) } } : {}),
       })),
       documents: (conversation.documents ?? []).map((doc) => ({ attachmentId: doc.attachmentId ? String(doc.attachmentId) : null, fileName: doc.fileName, mimeType: doc.mimeType })),
       createdAt: conversation.createdAt,
