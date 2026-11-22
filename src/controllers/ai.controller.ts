@@ -77,9 +77,9 @@ const generatedExamSchema = z.object({
 
 function extractExamJson(raw: string): unknown {
   const cleaned = raw.trim()
-    .replace(/^\\uFEFF/, "")
-    .replace(/^\\x60{3}(?:json)?\\s*/i, "")
-    .replace(/\\s*\\x60{3}$/, "")
+    .replace(/^\uFEFF/, "")
+    .replace(/^\x60{3}(?:json)?\s*/i, "")
+    .replace(/\s*\x60{3}$/, "")
     .trim();
   try {
     return JSON.parse(cleaned) as unknown;
@@ -93,7 +93,7 @@ function extractExamJson(raw: string): unknown {
       const char = cleaned[i];
       if (inString) {
         if (escaped) escaped = false;
-        else if (char === "\\\\") escaped = true;
+        else if (char === "\\") escaped = true;
         else if (char === '"') inString = false;
         continue;
       }
