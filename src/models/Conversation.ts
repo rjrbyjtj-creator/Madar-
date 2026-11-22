@@ -7,12 +7,15 @@ const messageSchema = new Schema(
     role: { type: String, enum: ["user", "model"], required: true },
     content: { type: String, required: true, trim: true, maxlength: 8000 },
     createdAt: { type: Date, default: Date.now },
+    examPaper: { filename: { type: String, maxlength: 180 }, html: { type: String, maxlength: 12000000 } },
+    attachment: { id: { type: Schema.Types.ObjectId }, fileName: { type: String, maxlength: 120 }, mimeType: { type: String, maxlength: 80 } },
   },
   { _id: false },
 );
 
 const chatDocumentSchema = new Schema(
   {
+    attachmentId: { type: Schema.Types.ObjectId },
     name: { type: String, required: true },
     uri: { type: String, required: true },
     mimeType: { type: String, required: true, default: "application/pdf" },
