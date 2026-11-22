@@ -2,6 +2,7 @@ import express, { Router } from "express";
 import {
   chatWithAI,
   uploadChatDocument,
+  getChatAttachment,
   deleteConversation,
   getConversation,
   listConversations,
@@ -20,6 +21,7 @@ export const aiRouter = Router();
 
 aiRouter.get("/conversations/shared/:token", getSharedConversation);
 aiRouter.get("/model-status", requireAuth, getAIModelStatus);
+aiRouter.get("/attachments/:id", requireAuth, getChatAttachment);
 aiRouter.get("/conversations", requireAuth, listConversations);
 aiRouter.get("/conversations/:id", requireAuth, getConversation);
 aiRouter.delete("/conversations/:id", requireAuth, deleteConversation);
