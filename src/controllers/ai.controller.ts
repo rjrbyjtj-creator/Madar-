@@ -475,8 +475,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ...history,
     {
       role: "user",
-      content: latestUserMessage,
+      content: parsed.data.screenFrame ? latestUserMessage + "\n\n[تصویر صفحه‌ای که کاربر همین حالا به اشتراک گذاشته پیوست شده است؛ محتوای قابل مشاهده را بررسی کن.]" : latestUserMessage,
       ...(conversationDocuments.length ? { attachments: conversationDocuments.map(({ fileUri, mimeType, fileName }) => ({ fileUri, mimeType, fileName })) } : {}),
+      ...(parsed.data.screenFrame ? { screenFrame: parsed.data.screenFrame } : {}),
     },
   ];
   const aiStudentContext = {
