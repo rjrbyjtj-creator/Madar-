@@ -88,16 +88,16 @@ export async function getExamSourceLibrary(message: string): Promise<{
   const bookAttachments = await Promise.all(selectedBooks.map(getAttachment));
   const bankAttachments = await Promise.all(selectedBanks.map(getAttachment));
   const mapFiles = tree.tree.filter((item) => item.type === "blob" && item.path.startsWith(subject.prefix) &&
-    /(?:book\\.json|map|نقشه|outline|فهرست)/i.test(item.path.split("/").pop() || "") &&
-    /\\.(?:json|md)$/i.test(item.path) && (item.size ?? 0) <= 100_000).slice(0, 3);
+    /(?:book\.json|map|نقشه|outline|فهرست)/i.test(item.path.split("/").pop() || "") &&
+    /\.(?:json|md)$/i.test(item.path) && (item.size ?? 0) <= 100_000).slice(0, 3);
   const mapParts = await Promise.all(mapFiles.map(async (item) => {
     const file = await github<GithubContent>(API + "/repos/" + OWNER + "/" + REPO + "/contents/" +
       item.path.split("/").map(encodeURIComponent).join("/") + "?ref=" + encodeURIComponent(BRANCH));
     if (file.type !== "file" || file.encoding !== "base64" || !file.content) return "";
-    return "[نقشه/فراداده کتاب: " + item.path + "]\\n" + Buffer.from(file.content.replace(/\\s/g, ""), "base64").toString("utf8").slice(0, 12_000);
+    return "[نقشه/فراداده کتاب: " + item.path + "]\n" + Buffer.from(file.content.replace(/\s/g, ""), "base64").toString("utf8").slice(0, 12_000);
   }));
-  const mapContext = mapParts.filter(Boolean).join("\\n\\n");
-  const describe = (files: TreeFile[]) => files.map((file) => file.path).join("\\n");
+  const mapContext = mapParts.filter(Boolean).join("\n\n");
+  const describe = (files: TreeFile[]) => files.map((file) => file.path).join("\n");
   return {
     subject: subject.label,
     bookAttachments,
@@ -107,6 +107,9 @@ export async function getExamSourceLibrary(message: string): Promise<{
       describe(selectedBooks),
       "بانک سؤال:",
       describe(selectedBanks),
+      "نقشه کتاب:",
+      mapFiles.map((file) => file.path).join("\n") || "نقشه جداگانه پیدا نشد؛ ساختار باید از فهرست و متن خود کتاب استخراج شود.",
     ].join("\n"),
+    mapContext,
   };
 }
