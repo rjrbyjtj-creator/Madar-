@@ -81,7 +81,7 @@ export async function getExamSourceLibrary(message: string): Promise<{
   const banks = pdfs.filter((item) => isQuestionBankPath(item.path) || Boolean(subject.bankPrefix && item.path.startsWith(subject.bankPrefix)));
   if (!books.length) throw new Error("Textbook PDF not found for subject " + subject.key);
   if (!banks.length) throw new Error("Question-bank PDF not found for subject " + subject.key);
-  const selectedBooks = books.slice(0, 2);
+  const selectedBooks = books.slice(0, 3);
   const selectedBanks = banks.slice(0, 5);
   const totalBytes = [...selectedBooks, ...selectedBanks].reduce((sum, item) => sum + (item.size ?? 0), 0);
   if (totalBytes > 35_000_000) throw new Error("Selected textbook and question-bank PDFs exceed the 35 MB combined processing limit");
