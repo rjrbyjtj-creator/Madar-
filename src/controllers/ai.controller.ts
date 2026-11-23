@@ -114,7 +114,7 @@ const generatedExamSchema = z.object({
     answerLines: examInteger(1, 8).optional(),
     figureSvg: z.string().max(16000).optional(),
     figureAlt: z.string().trim().max(180).optional(),
-  })).min(3).max(12),
+  })).min(3).max(16),
 });
 
 function parseExamJsonCandidate(candidate: string): unknown {
