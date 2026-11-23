@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { uploadGeminiFile } from "./gemini.service.js";
 
 const API_BASE = "https://api.github.com";
 const OWNER = process.env.ROBO_KNOWLEDGE_OWNER?.trim() || "rjrbyjtj-creator";
@@ -271,6 +272,60 @@ function scoreChunk(chunk: KnowledgeChunk, queryTokens: string[], normalizedQues
   if (queryTokens.length >= 2) score += Math.round((matched / queryTokens.length) * 5);
   if (chunk.category === "textbook") score += 2;
   return score;
+}
+
+type TextbookPdfAttachment = { fileUri: string; mimeType: string; fileName: string };
+const pdfAttachmentCache = new Map<string, { value: TextbookPdfAttachment; expiresAt: number }>();
+const pdfUploadPromises = new Map<string, Promise<TextbookPdfAttachment | undefined>>();
+
+export async function getTextbookPdfAttachment(question: string, conversationContext = ""): Promise<TextbookPdfAttachment | undefined> {
+  const subject = detectBookSubject(question + " " + conversationContext);
+  if (!subject) return undefined;
+  const cached = pdfAttachmentCache.get(subject);
+  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.value;
+  const pending = pdfUploadPromises.get(subject);
+  if (pending) return pending;
+
+  const uploadPromise = (async () => {
+    try {
+      const treeUrl = API_BASE + "/repos/" + OWNER + "/" + REPOSITORY +
+        "/git/trees/" + encodeURIComponent(BRANCH) + "?recursive=1";
+      const tree = await githubRequest<{ tree: Array<{ path: string; type: string; size?: number; sha?: string }> }>(treeUrl);
+      const pdfPath = subject === "chemistry"
+        ? "textbooks/chemistry-3-grade-12-experimental-math-1405/source.pdf"
+        : "textbooks/physics-3-grade-12-math/source.pdf";
+      const file = tree.tree.find((item) => item.type === "blob" && item.path === pdfPath && Boolean(item.sha));
+      if (!file?.sha) {
+        console.info("[TEXTBOOK] source PDF not found in private repository", { subject, expectedPath: pdfPath });
+        return undefined;
+      }
+      if ((file.size ?? 0) > 15_000_000) throw new Error("Textbook PDF exceeds the 15 MB processing limit");
+      const blob = await githubRequest<{ content?: string; encoding?: string }>(
+        API_BASE + "/repos/" + OWNER + "/" + REPOSITORY + "/git/blobs/" + file.sha
+      );
+      if (blob.encoding !== "base64" || !blob.content) throw new Error("Textbook PDF blob was not returned as base64");
+      const buffer = Buffer.from(blob.content.replace(/\s/g, ""), "base64");
+      if (!buffer.length || buffer.length > 15_000_000) throw new Error("Textbook PDF size is invalid");
+      if (buffer.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error("Textbook source file is not a valid PDF");
+      const fileName = subject === "chemistry" ? "chemistry-3-grade-12-1405.pdf" : "physics-3-grade-12.pdf";
+      const uploaded = await uploadGeminiFile(buffer, fileName, "application/pdf");
+      const expiresAt = uploaded.expirationTime ? Date.parse(uploaded.expirationTime) : Date.now() + 47 * 60 * 60 * 1000;
+      const value = { fileUri: uploaded.uri, mimeType: uploaded.mimeType, fileName };
+      pdfAttachmentCache.set(subject, { value, expiresAt });
+      console.info("[TEXTBOOK] source PDF uploaded to Gemini for visual page analysis", { subject, fileName, expiresAt: new Date(expiresAt).toISOString() });
+      return value;
+    } catch (error) {
+      console.error("[TEXTBOOK] source PDF visual processing unavailable:", error instanceof Error ? error.message : error);
+      return undefined;
+    }
+  })();
+
+  pdfUploadPromises.set(subject, uploadPromise);
+  try {
+    return await uploadPromise;
+  } finally {
+    pdfUploadPromises.delete(subject);
+  }
 }
 
 export async function retrieveTextbookContext(question: string, conversationContext = ""): Promise<string | undefined> {
