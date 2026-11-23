@@ -184,7 +184,7 @@ export async function extractQuestionsFromPdf(input: {
   buffer: Buffer; fileName: string; subject: string; grade: string; chapter: string;
 }): Promise<Array<{ question: string; questionType: string; difficulty: string; chapter: string }>> {
   if (!env.GEMINI_API_KEY) throw new Error("برای پردازش PDF باید GEMINI_API_KEY روی سرور تنظیم شده باشد.");
-  const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY, httpOptions: { timeout: 120000, retryOptions: { attempts: 1 } } });
+  const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY, httpOptions: { timeout: 180000, retryOptions: { attempts: 4 } } });
   let uploaded: any;
   try {
     uploaded = await ai.files.upload({
