@@ -43,10 +43,10 @@ function normalizeExamIntentText(value: string): string {
   return value
     .replace(/[يى]/g, "ی")
     .replace(/ك/g, "ک")
-    .replace(/[\\u064B-\\u065F\\u0670]/g, "")
-    .replace(/[\\u200c\\u200f\\u202a-\\u202e]/g, " ")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[\u200c\u200f\u202a-\u202e]/g, " ")
     .replace(/[ۀة]/g, "ه")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 }
@@ -54,17 +54,16 @@ function normalizeExamIntentText(value: string): string {
 function isExamGenerationRequest(message: string, conversationContext = ""): boolean {
   const current = normalizeExamIntentText(message);
   const combined = normalizeExamIntentText(message + " " + conversationContext);
-  const hasExamIntent = /(آزمون|امتحان|نمونه\\s*سوال|نمونه\\s*سؤال|آزمونک|کوییز|کوئیز|quiz|برگه\\s*امتحان)/i.test(combined);
+  const hasExamIntent = /(آزمون|امتحان|نمونه\s*سوال|نمونه\s*سؤال|آزمونک|کوییز|کوئیز|quiz|برگه\s*امتحان)/i.test(combined);
   if (!hasExamIntent) return false;
 
-  const hasCreationIntent = /(طراحی|طرح|بساز|ساخت|تهیه|آماده|تولید|درست\\s*کن|ایجاد|برام\\s*بساز|برام\\s*طراحی|فایل\\s*(کن|بده|بساز)|خروجی\\s*بگیر)/i.test(current);
-  const hasExamScope = /(از\\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\\s*(کتاب|جزوه)|بر\\s*اساس\\s*(کتاب|جزوه)|برای\\s*(فصل|مبحث|درس))/i.test(current);
-  const isExamFollowup = /(همون|همان|حالا|خب|پس|این\\s*رو|اونو|همین).{0,35}(بساز|طراحی|تهیه|آماده|فایل|درست\\s*کن)/i.test(current) &&
+  const hasCreationIntent = /(طراحی|طرح|بساز|ساخت|تهیه|آماده|تولید|درست\s*کن|ایجاد|برام\s*بساز|برام\s*طراحی|فایل\s*(کن|بده|بساز)|خروجی\s*بگیر)/i.test(current);
+  const hasExamScope = /(از\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه)|برای\s*(فصل|مبحث|درس))/i.test(current);
+  const isExamFollowup = /(همون|همان|حالا|خب|پس|این\s*رو|اونو|همین).{0,35}(بساز|طراحی|تهیه|آماده|فایل|درست\s*کن)/i.test(current) &&
     /(آزمون|امتحان|سوال|سؤال)/i.test(normalizeExamIntentText(conversationContext));
 
   return hasCreationIntent || hasExamScope || isExamFollowup;
 }
-
 function normalizeExamNumber(value: unknown): unknown {
   if (typeof value !== "string") return value;
   const normalized = value
