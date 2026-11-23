@@ -26,7 +26,7 @@ type KnowledgeChunk = {
   title: string;
   heading: string;
   text: string;
-  category: "textbook" | "knowledge";
+  category: "textbook" | "knowledge" | "question-bank";
   printedPage?: number;
   pdfPage?: number;
   chapter?: string;
@@ -187,16 +187,16 @@ function splitDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
 
 async function splitPdfDocument(path: string, buffer: Buffer, category: "textbook" | "question-bank"): Promise<KnowledgeChunk[]> {
   const parsed = await pdfParse(buffer);
-  const pages = String(parsed.text || "").split("\\f");
+  const pages = String(parsed.text || "").split("\f");
   const title = titleFromPath(path);
   const result: KnowledgeChunk[] = [];
   let chapter: string | undefined;
   for (let index = 0; index < pages.length; index++) {
-    const pageText = pages[index].replace(/\\r/g, "").trim();
+    const pageText = pages[index].replace(/\r/g, "").trim();
     if (!pageText) continue;
-    const chapterMatch = pageText.match(/(?:فصل|بخش)\\s*(اول|دوم|سوم|چهارم|پنجم|ششم|\\d+)/);
+    const chapterMatch = pageText.match(/(?:فصل|بخش)\s*(اول|دوم|سوم|چهارم|پنجم|ششم|\d+)/);
     if (chapterMatch) chapter = chapterMatch[0];
-    const paragraphs = pageText.split(/\\n\\s*\\n/).map((part) => part.trim()).filter(Boolean);
+    const paragraphs = pageText.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
     let current = "";
     const push = () => {
       const body = current.trim();
@@ -210,7 +210,7 @@ async function splitPdfDocument(path: string, buffer: Buffer, category: "textboo
     };
     for (const paragraph of paragraphs) {
       if (current && current.length + paragraph.length > CHUNK_TARGET_CHARS) push();
-      current += (current ? "\\n\\n" : "") + paragraph;
+      current += (current ? "\n\n" : "") + paragraph;
     }
     push();
   }
@@ -250,13 +250,14 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
     if (tree.truncated) throw new Error("Knowledge repository tree is truncated; split the library into smaller repositories or folders");
 
     const paths = tree.tree
-      .filter((item) => item.type === "blob" && item.path.endsWith(".md") &&
+      .filter((item) => item.type === "blob" && /\.(md|pdf)$/i.test(item.path) &&
         (item.path.startsWith("knowledge/") || item.path.startsWith("textbooks/")))
       .filter((item) => (item.size ?? 0) <= MAX_FILE_BYTES)
       .slice(0, MAX_FILES);
 
     let totalBytes = 0;
     const docs: KnowledgeDocument[] = [];
+    const chunksFromPdfs: KnowledgeChunk[] = [];
     for (let offset = 0; offset < paths.length; offset += 8) {
       const batch = paths.slice(offset, offset + 8);
       const loaded = await Promise.all(batch.map(async (item) => {
@@ -265,24 +266,37 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
           "?ref=" + encodeURIComponent(BRANCH);
         const file = await githubRequest<{ type: string; encoding?: string; content?: string; size?: number; path: string }>(url);
         if (file.type !== "file" || file.encoding !== "base64" || !file.content) return null;
-        const content = decodeGitHubContent(file.content);
-        return { path: file.path, content, bytes: Buffer.byteLength(content, "utf8") };
+        const bytes = Buffer.from(file.content.replace(/\s/g, ""), "base64");
+        return { path: file.path, content: file.path.toLowerCase().endsWith(".pdf") ? "" : bytes.toString("utf8"), bytes, size: bytes.length };
       }));
       for (const item of loaded) {
-        if (!item || totalBytes + item.bytes > MAX_TOTAL_BYTES) continue;
-        totalBytes += item.bytes;
-        docs.push({
-          path: item.path,
-          title: titleFromPath(item.path),
-          text: item.content,
-          category: item.path.startsWith("textbooks/") ? "textbook" : "knowledge",
-        });
+        if (!item || totalBytes + item.size > MAX_TOTAL_BYTES) continue;
+        totalBytes += item.size;
+        if (item.path.toLowerCase().endsWith(".pdf")) {
+          const isBank = /بانک|سوال|سؤال|question.?bank/i.test(item.path.split("/").pop() || "");
+          if (item.path.includes("chemistry-3-grade-12-experimental-math-1405") && !isBank) {
+            console.info("[TEXTBOOK] skipped chemistry textbook PDF pending permission verification", { path: item.path });
+            continue;
+          }
+          try {
+            chunksFromPdfs.push(...await splitPdfDocument(item.path, item.bytes, isBank ? "question-bank" : "textbook"));
+          } catch (error) {
+            console.warn("[TEXTBOOK] PDF text extraction failed", { path: item.path, error: error instanceof Error ? error.message : String(error) });
+          }
+        } else {
+          docs.push({
+            path: item.path,
+            title: titleFromPath(item.path),
+            text: item.content,
+            category: item.path.startsWith("textbooks/") ? "textbook" : "knowledge",
+          });
+        }
       }
     }
 
     const chunks = [...docs.flatMap(splitDocument), ...chunksFromPdfs];
     console.info("[TEXTBOOK] private knowledge index loaded", { markdownFiles: docs.length, pdfChunks: chunksFromPdfs.length, chunks: chunks.length, bytes: totalBytes, repository: OWNER + "/" + REPOSITORY, branch: BRANCH });
-    if (!chunks.length) throw new Error("No Markdown knowledge documents were found in Robo-Knowledge");
+    if (!chunks.length) throw new Error("No readable Markdown or PDF knowledge documents were found in Robo-Knowledge");
     cache = { chunks, expiresAt: Date.now() + CACHE_TTL_MS };
     return chunks;
   })();
@@ -309,6 +323,7 @@ function scoreChunk(chunk: KnowledgeChunk, queryTokens: string[], normalizedQues
   if (title && normalizedQuestion.includes(title)) score += 6;
   if (queryTokens.length >= 2) score += Math.round((matched / queryTokens.length) * 5);
   if (chunk.category === "textbook") score += 2;
+  if (chunk.category === "question-bank") score += 1;
   return score;
 }
 
