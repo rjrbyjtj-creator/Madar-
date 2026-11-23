@@ -796,7 +796,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   ];
   const examSourceRequested = /(از\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه))/i.test(normalizeExamIntentText(latestUserMessage));
   const examSourceAvailable = Boolean(examSourceLibrary?.bookAttachments.length && examSourceLibrary?.bankAttachments.length) || conversationDocuments.length > 0;
-  const examSourceMissing = examGenerationMode && examSourceRequested && !examSourceAvailable;
+  const examSourceMissing = examGenerationMode && !examSourceAvailable;
+  const examSourceClarification = examSourceLibraryError.includes("TEXTBOOK_PERMISSION_NOT_VERIFIED")
+    ? "در فراداده کتابخانه، مجوز پردازش PDF کتاب این درس هنوز تأیید نشده است. قبل از ارسال کتاب به سرویس هوش مصنوعی، لطفاً وضعیت مجوز را بررسی و تأیید کن؛ تا آن زمان از محتوای آن PDF استفاده نمی‌کنم."
+    : "برای طراحی آزمون استاندارد، PDF کتاب درسی و PDF بانک سؤال این درس باید در پوشه همان درس در Robo-Knowledge موجود باشند. فعلاً یکی از منابع پیدا نشد؛ لطفاً پوشه و نام فایل‌ها را بررسی کن."
 
   const aiStudentContext = {
     name: user.name,
@@ -846,7 +849,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   } : aiStudentContext;
 
   const aiResult = examSourceMissing
-    ? { text: JSON.stringify({ clarification: "برای اینکه آزمون دقیقاً از همان کتاب و مبحث باشد، لطفاً فایل PDF کتاب/جزوه را در همین گفتگو پیوست کن یا عنوان دقیق کتاب و پایه را بگو." }), planProposal: undefined, planDeletionProposal: undefined }
+    ? { text: JSON.stringify({ clarification: examSourceClarification }), planProposal: undefined, planDeletionProposal: undefined }
     : exactTodayRead
       ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
       : examGenerationMode
