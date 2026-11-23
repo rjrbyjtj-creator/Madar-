@@ -9,8 +9,6 @@ import {
 } from "./planner-tools.service.js";
 
 export const GROQ_MODEL_IDS = [
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
   "openai/gpt-oss-120b",
   "openai/gpt-oss-20b",
 ] as const;
@@ -55,6 +53,40 @@ function errorText(error: unknown): string {
   return (env.GROQ_API_KEY ? message.split(env.GROQ_API_KEY).join("[REDACTED]") : message)
     .replace(/[\r\n\t]+/g, " ")
     .slice(0, 500);
+}
+
+async function requestGroqWithFallback(
+  modelId: typeof GROQ_MODEL_IDS[number],
+  payload: Record<string, unknown>,
+): Promise<Awaited<ReturnType<typeof fetch>>> {
+  const fallbackModel = modelId === "openai/gpt-oss-120b"
+    ? "openai/gpt-oss-20b"
+    : "openai/gpt-oss-120b";
+  const candidates = [modelId, fallbackModel] as const;
+  let lastError: unknown;
+  for (let index = 0; index < candidates.length; index += 1) {
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + env.GROQ_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ...payload, model: candidates[index] }),
+        signal: AbortSignal.timeout(45_000),
+      });
+      if (response.ok || ![429, 500, 502, 503, 504].includes(response.status) || index === candidates.length - 1) {
+        return response;
+      }
+      console.warn("[AI] Groq model temporarily unavailable; trying fallback:", candidates[index], response.status);
+    } catch (error) {
+      lastError = error;
+      if (index === candidates.length - 1) throw error;
+      console.warn("[AI] Groq request failed; trying fallback:", candidates[index]);
+    }
+  }
+  if (lastError) throw lastError;
+  throw new Error("Groq fallback exhausted");
 }
 
 function toolDefinitions() {
@@ -132,21 +164,12 @@ export async function generateGroqReply(
 
   try {
     for (let round = 0; round < 5; round += 1) {
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + env.GROQ_API_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: modelId,
-          messages: chatMessages,
-          temperature: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 0.2 : 0.6,
-          max_completion_tokens: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 8192 : student.articleWriterContext ? 4096 : 2048,
-          ...(student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? { response_format: { type: "json_object" } } : {}),
-          ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
-        }),
-        signal: AbortSignal.timeout(45_000),
+      const response = await requestGroqWithFallback(modelId, {
+        messages: chatMessages,
+        temperature: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 0.2 : 0.6,
+        max_completion_tokens: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 8192 : student.articleWriterContext ? 4096 : 2048,
+        ...(student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? { response_format: { type: "json_object" } } : {}),
+        ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
       });
 
       if (!response.ok) {
