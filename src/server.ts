@@ -7,6 +7,7 @@ import { seedDefaultAdmin } from "./services/seed.service.js";
 import { seedDefaultThemes } from "./services/theme.service.js";
 import { seedDefaultArticles } from "./services/articles.service.js";
 import { initializeMusicStore } from "./services/music-store.service.js";
+import { initializeQuestionBankStore } from "./services/question-bank-store.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
 import { startTelegramFilesBot, stopTelegramFilesBot, migrateLegacyMusicAudioToTurso } from "./services/telegram-files.service.js";
 import { logger } from "./utils/logger.js";
@@ -33,6 +34,7 @@ async function startServer(): Promise<void> {
   try {
     await connectDB();
     try { await initializeMusicStore(); } catch (error) { console.error("[MUSIC_DB] Turso initialization failed; other backend features will continue:", error instanceof Error ? error.message : error); }
+    try { await initializeQuestionBankStore(); } catch (error) { console.error("[QUESTION_BANK] Turso initialization failed; other backend features will continue:", error instanceof Error ? error.message : error); }
     await seedDefaultAdmin();
     await seedDefaultThemes();
     await seedDefaultArticles();
