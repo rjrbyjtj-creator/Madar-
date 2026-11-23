@@ -227,10 +227,45 @@ function extractExamJson(raw: string): unknown {
 }
 
 
+type ExamProvider = "gemini" | "groq" | "openrouter" | "cloudflare" | "huggingface" | "coarena";
+
+async function generateExamStageReply(
+  messages: GeminiMessage[],
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string },
+  provider: ExamProvider,
+  modelId: string,
+): Promise<{ text: string }> {
+  if (provider === "gemini") {
+    return generateGeminiReply(messages, context, modelId as typeof GEMINI_MODEL_IDS[number]);
+  }
+
+  // Non-Gemini providers receive the indexed textbook and question-bank excerpts
+  // through availableFilesContext. Gemini file URIs are deliberately not forwarded.
+  const textMessages = messages.map(({ role, content }) => ({ role, content }));
+  if (provider === "groq") {
+    return generateGroqReply(textMessages, context, modelId as typeof GROQ_MODEL_IDS[number]);
+  }
+  if (provider === "openrouter") {
+    return generateOpenRouterReply(textMessages, context, modelId as typeof OPENROUTER_MODEL_IDS[number]);
+  }
+  if (provider === "cloudflare") {
+    return generateCloudflareReply(textMessages, context, modelId as typeof CLOUDFLARE_MODEL_IDS[number]);
+  }
+  if (provider === "huggingface") {
+    return generateHuggingFaceReply(textMessages, context, modelId as typeof HUGGINGFACE_MODEL_IDS[number]);
+  }
+  return generateCoarenaReply(
+    textMessages,
+    modelId,
+    [context.availableFilesContext, context.articleWriterContext].filter(Boolean).join("\n\n"),
+  );
+}
+
 async function generateExamInStages(
   messages: GeminiMessage[],
   context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string },
-  model: typeof GEMINI_MODEL_IDS[number],
+  provider: ExamProvider,
+  modelId: string,
 ): Promise<{ text: string; planProposal?: undefined; planDeletionProposal?: undefined }> {
   const latest = messages[messages.length - 1];
   if (!latest) throw new Error("پیام آزمون پیدا نشد.");
@@ -241,7 +276,7 @@ async function generateExamInStages(
   ];
 
   console.info("[EXAM_PIPELINE] stage 1/3 source analysis started", { attachments: attachments.length });
-  const analysis = await generateGeminiReply(withStage([
+  const analysis = await generateExamStageReply(withStage([
     "مرحله ۱ از ۳ — تحلیل منبع و طراحی نقشه آزمون.",
     "PDFهای پیوست‌شده و نقشه/فراداده کتاب که در متن پیام آمده را با هم بررسی کن. ابتدا نقشه کتاب را برای تشخیص فصل‌ها، درس‌ها و مرز موضوعی بخوان؛ سپس محدوده دقیق مبحث را در PDF کتاب پیدا و مفاهیم، تعاریف، روابط، مثال‌ها و اهداف قابل سنجش را فهرست کن. اگر نقشه جداگانه موجود نیست، ساختار را از فهرست و خود کتاب استخراج کن و این محدودیت را در blueprint ثبت کن.",
     "سپس بانک سؤال پیوست‌شده را فقط در همان محدوده جست‌وجو کن و الگوی واقعی آن را استخراج کن: تیپ سؤال‌ها، ساختار صورت سؤال، افعال دستوری، تعداد و جنس زیربخش‌ها، سطح دشواری، سبک محاسبات و الگوی بارم‌بندی.",
@@ -250,13 +285,13 @@ async function generateExamInStages(
   ].join("\n")), {
     ...context,
     articleWriterContext: "حالت طراحی آزمون تشریحی فعال است. این مرحله فقط تحلیل منبع و ساخت نقشه است؛ سؤال نهایی تولید نکن. پاسخ باید JSON معتبر و فقط شامل نقشه تحلیل باشد."
-  }, model);
+  }, provider, modelId);
 
   if (!analysis.text.trim()) throw new Error("تحلیل منبع در مرحله اول خروجی نداشت.");
   console.info("[EXAM_PIPELINE] stage 1/3 complete", { chars: analysis.text.length });
 
   console.info("[EXAM_PIPELINE] stage 2/3 question drafting started");
-  const draft = await generateGeminiReply(withStage([
+  const draft = await generateExamStageReply(withStage([
     "مرحله ۲ از ۳ — طراحی نسخه اولیه آزمون.",
     "نقشه تحلیل مرحله اول را مبنا قرار بده و فقط بر اساس محدوده کتاب و الگوی بانک سؤال، آزمونی تازه بساز.",
     "نقشه تحلیل مرحله اول:\n" + analysis.text,
@@ -265,13 +300,13 @@ async function generateExamInStages(
   ].join("\n")), {
     ...context,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله تولید نسخه اولیه است؛ نقشه تحلیل را دقیق اجرا کن."
-  }, model);
+  }, provider, modelId);
 
   if (!draft.text.trim()) throw new Error("مرحله طراحی سؤال خروجی نداشت.");
   console.info("[EXAM_PIPELINE] stage 2/3 complete", { chars: draft.text.length });
 
   console.info("[EXAM_PIPELINE] stage 3/3 independent review started");
-  const reviewed = await generateGeminiReply(withStage([
+  const reviewed = await generateExamStageReply(withStage([
     "مرحله ۳ از ۳ — بازبینی مستقل، اصلاح و نهایی‌سازی آزمون.",
     "نقشه تحلیل مرحله اول:\n" + analysis.text,
     "پیش‌نویس مرحله دوم:\n" + draft.text,
@@ -281,7 +316,7 @@ async function generateExamInStages(
   ].join("\n")), {
     ...context,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله بازبین مستقل است؛ خطاها را اصلاح کن و فقط JSON نهایی را برگردان."
-  }, model);
+  }, provider, modelId);
 
   if (!reviewed.text.trim()) throw new Error("بازبینی نهایی آزمون خروجی نداشت.");
   console.info("[EXAM_PIPELINE] stage 3/3 complete", { chars: reviewed.text.length });
@@ -853,7 +888,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
       : examGenerationMode
         ? examSourceLibrary?.bookAttachments.length && examSourceLibrary?.bankAttachments.length
-          ? await generateExamInStages(providerMessages, examStudentContext, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
+          ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"))
           : conversationDocuments.length || textbookPdfAttachment
             ? await generateExamInStages(providerMessages, examStudentContext, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
             : { text: JSON.stringify({ clarification: "برای طراحی آزمون استاندارد، PDF کتاب درسی و PDF بانک سؤال این درس باید در پوشه کتابخانه Robo-Knowledge موجود باشند. فعلاً یکی از این دو منبع پیدا نشد؛ لطفاً پوشه و نام فایل‌ها را بررسی کن." }) }
