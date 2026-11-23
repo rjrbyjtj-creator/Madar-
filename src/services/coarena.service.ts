@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { AppError } from "../utils/errors.js";
+import type { PlannerProposal, PlannerDeletionProposal } from "./planner-tools.service.js";
 
 export const COARENA_MODEL_IDS = [
   "claude-fable-5", "claude-fable-5-1", "claude-fable-5-2",
@@ -27,7 +28,7 @@ export async function fetchCoarenaModels(): Promise<string[]> {
   return ids.length ? ids : [...COARENA_MODEL_IDS];
 }
 
-export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: string, systemContext = ""): Promise<{ text: string }> {
+export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: string, systemContext = ""): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   if (!env.COARENA_API_KEY) throw new AppError(503, "COARENA_NOT_CONFIGURED", "کلید Coarena روی سرور تنظیم نشده است.");
   if (!/^[a-zA-Z0-9._:-]{1,160}$/.test(modelId)) throw new AppError(400, "INVALID_COARENA_MODEL", "شناسه مدل Coarena معتبر نیست.");
   const normalized = [...messages];
