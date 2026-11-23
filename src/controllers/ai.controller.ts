@@ -608,7 +608,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ? (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash")
     : (env.GEMINI_MODEL ?? "gemini-3.8-flash");
   const recentConversationContext = history.slice(-6).map((item) => item.content).join("\n");
-  const textbookPdfAttachment = (selectedProvider === "gemini" || examGenerationMode) && textbookContext
+  // Indexed textbook Markdown is already available to every provider through availableFilesContext.
+  // Attach the original PDF only when Gemini is selected (for diagrams and page-level visual analysis).
+  const textbookPdfAttachment = selectedProvider === "gemini" && textbookContext
     ? await getTextbookPdfAttachment(latestUserMessage, recentConversationContext)
     : undefined;
   const conversationDocuments = (conversation.documents ?? []).map((document) => ({
