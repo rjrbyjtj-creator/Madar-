@@ -287,7 +287,10 @@ async function generateExamInStages(
     articleWriterContext: "حالت طراحی آزمون تشریحی فعال است. این مرحله فقط تحلیل منبع و ساخت نقشه است؛ سؤال نهایی تولید نکن. پاسخ باید JSON معتبر و فقط شامل نقشه تحلیل باشد."
   }, provider, modelId);
 
-  if (!analysis.text.trim()) throw new Error("تحلیل منبع در مرحله اول خروجی نداشت.");
+  if (analysis.text.trim().length < 400) {
+    console.error("[EXAM_PIPELINE] stage 1 returned an incomplete source analysis", { chars: analysis.text.trim().length, provider, modelId });
+    throw new Error("تحلیل منبع ناقص بود؛ مدل انتخاب‌شده نتوانست نقشه کتاب و بانک سؤال را کامل بررسی کند. مدل دیگری انتخاب کن یا کمی بعد دوباره تلاش کن.");
+  }
   console.info("[EXAM_PIPELINE] stage 1/3 complete", { chars: analysis.text.length });
 
   console.info("[EXAM_PIPELINE] stage 2/3 question drafting started");
@@ -302,7 +305,10 @@ async function generateExamInStages(
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله تولید نسخه اولیه است؛ نقشه تحلیل را دقیق اجرا کن."
   }, provider, modelId);
 
-  if (!draft.text.trim()) throw new Error("مرحله طراحی سؤال خروجی نداشت.");
+  if (draft.text.trim().length < 800) {
+    console.error("[EXAM_PIPELINE] stage 2 returned an incomplete exam draft", { chars: draft.text.trim().length, provider, modelId });
+    throw new Error("پیش‌نویس آزمون ناقص بود و تعداد/ساختار سؤال‌های لازم را ندارد؛ خروجی کوتاه مدل پذیرفته نشد.");
+  }
   console.info("[EXAM_PIPELINE] stage 2/3 complete", { chars: draft.text.length });
 
   console.info("[EXAM_PIPELINE] stage 3/3 independent review started");
@@ -318,7 +324,10 @@ async function generateExamInStages(
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله بازبین مستقل است؛ خطاها را اصلاح کن و فقط JSON نهایی را برگردان."
   }, provider, modelId);
 
-  if (!reviewed.text.trim()) throw new Error("بازبینی نهایی آزمون خروجی نداشت.");
+  if (reviewed.text.trim().length < 800) {
+    console.error("[EXAM_PIPELINE] stage 3 returned an incomplete reviewed exam", { chars: reviewed.text.trim().length, provider, modelId });
+    throw new Error("بازبینی نهایی آزمون ناقص بود؛ نسخه کوتاه یا ناقص به‌عنوان برگه نهایی تحویل داده نشد.");
+  }
   console.info("[EXAM_PIPELINE] stage 3/3 complete", { chars: reviewed.text.length });
   return { text: reviewed.text };
 }
