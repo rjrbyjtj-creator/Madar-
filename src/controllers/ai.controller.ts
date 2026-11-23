@@ -599,11 +599,11 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
   const examBankContext = examGenerationMode ? await (async () => {
     const normalized = normalizeExamIntentText(latestUserMessage);
-    const terms = [...new Set(normalized.split(/[^\\p{L}\\p{N}]+/u).filter((term) => term.length >= 3))].slice(0, 8);
+    const terms = [...new Set(normalized.split(/[^\p{L}\p{N}]+/u).filter((term) => term.length >= 3))].slice(0, 8);
     const filter: Record<string, unknown> = { isActive: true };
     if (terms.length) {
       filter.$or = terms.flatMap((term) => {
-        const escaped = term.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\  const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);");
+        const escaped = term.replace(/[|\\{}()[\]^$+*?.-]/g, "\\$&");
         return [
           { question: { $regex: escaped, $options: "i" } },
           { chapter: { $regex: escaped, $options: "i" } },
@@ -615,12 +615,12 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       .sort({ createdAt: -1 }).limit(6)
       .select("question subject grade chapter questionType difficulty source").lean();
     if (!items.length) return "";
-    return "نمونه‌های مرتبط از بانک سؤال اختصاصی مدار (صرفاً برای الهام از تیپ، ساختار، عمق مفهومی و سطح دشواری؛ عیناً کپی نکن و داده‌ها/اعداد/شرایط را تازه طراحی کن):\\n" +
+    return "نمونه‌های مرتبط از بانک سؤال اختصاصی مدار (صرفاً برای الهام از تیپ، ساختار، عمق مفهومی و سطح دشواری؛ عیناً کپی نکن و داده‌ها/اعداد/شرایط را تازه طراحی کن):\n" +
       items.map((item, index) => [
         (index + 1) + ". درس: " + item.subject + "؛ پایه: " + (item.grade || "نامشخص") +
         "؛ فصل: " + (item.chapter || "نامشخص") + "؛ تیپ: " + item.questionType + "؛ دشواری: " + item.difficulty,
         item.question,
-      ].join("\\n")).join("\\n\\n").slice(0, 6500);
+      ].join("\n")).join("\n\n").slice(0, 6500);
   })() : "";
 
   const studyFilesContext = isStudyFilesRequest(latestUserMessage)
