@@ -292,7 +292,7 @@ export async function getTextbookPdfAttachment(question: string, conversationCon
         "/git/trees/" + encodeURIComponent(BRANCH) + "?recursive=1";
       const tree = await githubRequest<{ tree: Array<{ path: string; type: string; size?: number; sha?: string }> }>(treeUrl);
       const pdfPath = subject === "chemistry"
-        ? "textbooks/chemistry-3-grade-12-experimental-math-1405/source.pdf"
+        ? "textbooks/chemistry-3-grade-12-experimental-math-1405/shimi-12.pdf"
         : "textbooks/physics-3-grade-12-math/source.pdf";
       const file = tree.tree.find((item) => item.type === "blob" && item.path === pdfPath && Boolean(item.sha));
       if (!file?.sha) {
