@@ -74,6 +74,21 @@ export async function getExamSourceLibrary(message: string): Promise<{
   if (!subject) return { subject: "", bookAttachments: [], bankAttachments: [], sourceDescription: "نام درس از درخواست قابل تشخیص نیست.", mapContext: "" };
   const tree = await github<GithubTree>(API + "/repos/" + OWNER + "/" + REPO + "/git/trees/" + encodeURIComponent(BRANCH) + "?recursive=1");
   if (tree.truncated) throw new Error("Robo-Knowledge repository tree is truncated");
+  const metadataFile = tree.tree.find((item) => item.type === "blob" && item.path === subject.prefix + "book.json");
+  if (metadataFile) {
+    const metadata = await github<GithubContent>(API + "/repos/" + OWNER + "/" + REPO + "/contents/" +
+      metadataFile.path.split("/").map(encodeURIComponent).join("/") + "?ref=" + encodeURIComponent(BRANCH));
+    if (metadata.encoding === "base64" && metadata.content) {
+      const parsedMetadata = JSON.parse(Buffer.from(metadata.content.replace(/\s/g, ""), "base64").toString("utf8")) as {
+        permission_status?: string; rights_status?: string; notes?: string[];
+      };
+      const permission = String(parsedMetadata.permission_status || "").toLowerCase();
+      if (permission && !/(verified|granted|authorized|permitted)/i.test(permission)) {
+        throw new Error("TEXTBOOK_PERMISSION_NOT_VERIFIED: کتاب " + subject.label + " در book.json با وضعیت مجوز «" +
+          permission + "» ثبت شده و پیش از پردازش PDF باید مجوز استفاده تأیید شود.");
+      }
+    }
+  }
   const pdfs = tree.tree.filter((item) => item.type === "blob" &&
     (item.path.startsWith(subject.prefix) || Boolean(subject.bankPrefix && item.path.startsWith(subject.bankPrefix))) &&
     item.path.toLowerCase().endsWith(".pdf") && (item.size ?? 0) <= 15_000_000);
