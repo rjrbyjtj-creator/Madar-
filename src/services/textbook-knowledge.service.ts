@@ -249,7 +249,7 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
   refreshPromise = (async () => {
     const treeUrl = API_BASE + "/repos/" + OWNER + "/" + REPOSITORY +
       "/git/trees/" + encodeURIComponent(BRANCH) + "?recursive=1";
-    const tree = await githubRequest<{ truncated?: boolean; tree: Array<{ path: string; type: string; size?: number }> }>(treeUrl);
+    const tree = await githubRequest<{ truncated?: boolean; tree: Array<{ path: string; type: string; size?: number; sha?: string }> }>(treeUrl);
     if (tree.truncated) throw new Error("Knowledge repository tree is truncated; split the library into smaller repositories or folders");
 
     const paths = tree.tree
@@ -264,13 +264,16 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
     for (let offset = 0; offset < paths.length; offset += 8) {
       const batch = paths.slice(offset, offset + 8);
       const loaded = await Promise.all(batch.map(async (item) => {
-        const url = API_BASE + "/repos/" + OWNER + "/" + REPOSITORY +
-          "/contents/" + item.path.split("/").map(encodeURIComponent).join("/") +
-          "?ref=" + encodeURIComponent(BRANCH);
-        const file = await githubRequest<{ type: string; encoding?: string; content?: string; size?: number; path: string }>(url);
-        if (file.type !== "file" || file.encoding !== "base64" || !file.content) return null;
+        const isPdf = item.path.toLowerCase().endsWith(".pdf");
+        const url = isPdf && item.sha
+          ? API_BASE + "/repos/" + OWNER + "/" + REPOSITORY + "/git/blobs/" + item.sha
+          : API_BASE + "/repos/" + OWNER + "/" + REPOSITORY +
+            "/contents/" + item.path.split("/").map(encodeURIComponent).join("/") +
+            "?ref=" + encodeURIComponent(BRANCH);
+        const file = await githubRequest<{ type?: string; encoding?: string; content?: string; size?: number; path?: string }>(url);
+        if (file.encoding !== "base64" || !file.content) return null;
         const bytes = Buffer.from(file.content.replace(/\s/g, ""), "base64");
-        return { path: file.path, content: file.path.toLowerCase().endsWith(".pdf") ? "" : bytes.toString("utf8"), bytes, size: bytes.length };
+        return { path: item.path, content: isPdf ? "" : bytes.toString("utf8"), bytes, size: bytes.length };
       }));
       for (const item of loaded) {
         if (!item || totalBytes + item.size > MAX_TOTAL_BYTES) continue;
