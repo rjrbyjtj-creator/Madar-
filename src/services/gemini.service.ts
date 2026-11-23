@@ -41,9 +41,21 @@ const TTS_MODEL = env.GEMINI_TTS_MODEL;
 const PRIMARY_TIMEOUT_MS = 18_000;
 const FALLBACK_TIMEOUT_MS = 12_000;
 
-function createAI(timeoutMs: number): GoogleGenAI {
+function getGeminiApiKeys(): string[] {
+  return [env.GEMINI_API_KEY, env.GEMINI_API_KEY_2, env.GEMINI_API_KEY_3, env.GEMINI_API_KEY_4, env.GEMINI_API_KEY_5]
+    .map((key) => key.trim()).filter(Boolean).filter((key, index, all) => all.indexOf(key) === index);
+}
+let nextGeminiKeyIndex = 0;
+function nextGeminiApiKey(): string {
+  const keys = getGeminiApiKeys();
+  if (!keys.length) throw new AppError(503, "AI_NOT_CONFIGURED", "هیچ کلید Gemini روی سرور تنظیم نشده است.");
+  const key = keys[nextGeminiKeyIndex % keys.length];
+  nextGeminiKeyIndex = (nextGeminiKeyIndex + 1) % keys.length;
+  return key;
+}
+function createAI(timeoutMs: number, apiKey = nextGeminiApiKey()): GoogleGenAI {
   return new GoogleGenAI({
-    apiKey: env.GEMINI_API_KEY,
+    apiKey,
     httpOptions: {
       retryOptions: { attempts: 1 },
       timeout: timeoutMs,
@@ -57,7 +69,7 @@ export async function uploadGeminiFile(buffer: Buffer, fileName: string, mimeTyp
   mimeType: string;
   expirationTime?: string;
 }> {
-  if (!env.GEMINI_API_KEY) {
+  if (!getGeminiApiKeys().length) {
     throw new AppError(503, "AI_NOT_CONFIGURED", "سرویس هوش مصنوعی هنوز روی سرور تنظیم نشده است.");
   }
   try {
@@ -91,7 +103,7 @@ export async function uploadGeminiFile(buffer: Buffer, fileName: string, mimeTyp
 }
 function safeError(error: unknown): string {
   const message = error instanceof Error ? error.message : "Unknown Gemini error";
-  return (env.GEMINI_API_KEY ? message.split(env.GEMINI_API_KEY).join("[REDACTED]") : message)
+  return getGeminiApiKeys().reduce((safe, key) => safe.split(key).join("[REDACTED]"), message)
     .replace(/[\r\n\t]+/g, " ")
     .slice(0, 600);
 }
@@ -166,8 +178,9 @@ async function callModel(
   systemInstruction: string,
   temperature: number,
   studentId?: mongoose.Types.ObjectId,
+  apiKey?: string,
 ): Promise<{ text: string; finishReason?: string; blocked?: boolean; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
-  const ai = createAI(timeoutMs);
+  const ai = createAI(timeoutMs, apiKey);
   const tools = studentId ? [{ functionDeclarations: [...plannerToolDeclarations] }] : undefined;
   const examJsonMode = systemInstruction.includes("حالت طراحی آزمون تشریحی فعال است");
   const config: Record<string, unknown> = {
@@ -345,9 +358,12 @@ export async function generateGeminiReply(
   let lastStatus = 502;
   let lastFinishReason: string | undefined;
 
+  const apiKeys = getGeminiApiKeys();
   for (const { model, timeoutMs } of attempts) {
+    for (let keyAttempt = 0; keyAttempt < apiKeys.length; keyAttempt += 1) {
+    const apiKey = apiKeys[(nextGeminiKeyIndex + keyAttempt) % apiKeys.length];
     const started = Date.now();
-    console.info("[AI] Gemini request started:", model, "timeout=", timeoutMs);
+    console.info("[AI] Gemini request started:", model, "keySlot=", ((nextGeminiKeyIndex + keyAttempt) % apiKeys.length) + 1, "timeout=", timeoutMs);
     try {
       const { text, finishReason, blocked, planProposal, planDeletionProposal } = await callModel(
         model,
@@ -356,6 +372,7 @@ export async function generateGeminiReply(
         systemInstruction,
         student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 0.25 : 0.6,
         student.userId,
+        apiKey,
       );
       lastFinishReason = finishReason;
 
@@ -405,18 +422,16 @@ export async function generateGeminiReply(
       );
 
       if (status === 401 || status === 403) {
-        throw new AppError(
-          503,
-          "AI_AUTH_FAILED",
-          "کلید Gemini معتبر نیست یا پروژه گوگل مجوز این API را ندارد.",
-        );
+        console.warn("[AI] Gemini key rejected; trying another configured key", { keySlot: ((nextGeminiKeyIndex + keyAttempt) % apiKeys.length) + 1, status });
+        continue;
       }
-      // A quota/rate-limit response from one model must not prevent the configured fallback.
-      // The next attempt uses the single lightweight fallback model.
-      // timeout / 5xx / 404 / 429 → fall through to next attempt
       if (![404, 429, 500, 502, 503, 504].includes(status)) {
         throw new AppError(502, "AI_PROVIDER_ERROR", "درخواست به Gemini معتبر نبود.");
       }
+      if (keyAttempt + 1 < apiKeys.length) continue;
+    }
+    if (apiKeys.length) nextGeminiKeyIndex = (nextGeminiKeyIndex + 1) % apiKeys.length;
+    break;
     }
   }
 
