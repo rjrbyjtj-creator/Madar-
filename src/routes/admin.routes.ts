@@ -3,7 +3,7 @@ import { User } from "../models/User.js";
 import { requireAdmin, requireAuth } from "../middlewares/auth.js";
 import { z } from "zod";
 import { AppError } from "../utils/errors.js";
-import { addQuestionItem, deactivateQuestionItem, deactivateQuestionBankFile, listQuestionItems, listQuestionBankFiles, questionBankFacets, saveQuestionBankFile, extractQuestionsFromPdf, updateQuestionBankFileQuestionCount } from "../services/question-bank-store.service.js";
+import { addQuestionItem, deactivateQuestionItem, deactivateQuestionBankFile, listQuestionItems, listQuestionBankFiles, questionBankFacets, saveQuestionBankFile, extractQuestionsFromPdf, updateQuestionBankFileQuestionCount, getQuestionBankFileForProcessing, questionItemExists } from "../services/question-bank-store.service.js";
 
 export const adminRouter = Router();
 
@@ -103,6 +103,29 @@ adminRouter.post("/question-bank/files", requireAuth, requireAdmin,
         : questionCount + " سؤال از فایل متنی استخراج و به بانک سؤال اضافه شد." });
   }
 );
+
+adminRouter.post("/question-bank/files/:id/process", requireAuth, requireAdmin, async (req, res) => {
+  const id = String(req.params.id || "");
+  if (!id || id.length > 80) throw new AppError(400, "INVALID_FILE_ID", "شناسه فایل معتبر نیست.");
+  const file = await getQuestionBankFileForProcessing(id);
+  if (!file) throw new AppError(404, "FILE_NOT_FOUND", "فایل پیدا نشد.");
+  if (file.mime_type !== "application/pdf") throw new AppError(415, "UNSUPPORTED_FILE_TYPE", "پردازش مجدد فقط برای PDF فعال است.");
+  const extracted = await extractQuestionsFromPdf({
+    buffer: file.buffer, fileName: String(file.file_name), subject: String(file.subject),
+    grade: String(file.grade), chapter: String(file.chapter || ""),
+  });
+  let added = 0;
+  for (const item of extracted) {
+    if (await questionItemExists(item.question, String(file.file_name))) continue;
+    await addQuestionItem({ question: item.question, subject: String(file.subject), grade: String(file.grade),
+      chapter: item.chapter, questionType: item.questionType, difficulty: item.difficulty, source: String(file.file_name) });
+    added += 1;
+  }
+  const currentCount = Number(file.question_count || 0) + added;
+  await updateQuestionBankFileQuestionCount(id, currentCount);
+  res.json({ ok: true, extractedCount: added, totalQuestions: currentCount,
+    message: added + " سؤال جدید از PDF استخراج و به بانک اضافه شد." });
+});
 
 adminRouter.delete("/question-bank/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = String(req.params.id || "");
