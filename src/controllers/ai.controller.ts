@@ -599,9 +599,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
   const examBankContext = examGenerationMode ? await (async () => {
     const normalized = normalizeExamIntentText(latestUserMessage);
-    const grade = /(?:پایه\s*)?(?:دهم|10|۱۰)\b/.test(normalized) ? "10"
-      : /(?:پایه\s*)?(?:یازدهم|11|۱۱)\b/.test(normalized) ? "11"
-      : /(?:پایه\s*)?(?:دوازدهم|12|۱۲)\b/.test(normalized) ? "12" : undefined;
+    const grade = /(?:پایه\s*)?(?:دهم|10|۱۰)/.test(normalized) ? "10"
+      : /(?:پایه\s*)?(?:یازدهم|11|۱۱)/.test(normalized) ? "11"
+      : /(?:پایه\s*)?(?:دوازدهم|12|۱۲)/.test(normalized) ? "12" : undefined;
     const subjectAliases: Array<[string, string[]]> = [
       ["فیزیک", ["فیزیک", "physics"]], ["شیمی", ["شیمی", "chemistry"]],
       ["زیست‌شناسی", ["زیست", "زیست‌شناسی", "biology"]], ["ریاضی", ["ریاضی", "ریاضیات", "math"]],
