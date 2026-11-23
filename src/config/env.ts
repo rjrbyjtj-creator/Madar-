@@ -24,6 +24,7 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().default(""),
   GROQ_MODEL: z.string().min(1).default("openai/gpt-oss-120b"),
   OPENROUTER_API_KEY: z.string().default(""),
+  COARENA_API_KEY: z.string().default(""),
   HF_TOKEN: z.string().default(""),
   CLOUDFLARE_API_TOKEN: z.string().default(""),
   CLOUDFLARE_ACCOUNT_ID: z.string().default(""),
