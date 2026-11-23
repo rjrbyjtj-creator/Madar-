@@ -27,14 +27,14 @@ async function github<T>(url: string): Promise<T> {
 function subjectDirectory(message: string): { key: string; label: string; prefix: string } | undefined {
   const text = message.replace(/[يى]/g, "ی").replace(/ك/g, "ک").toLowerCase();
   if (/شیمی|chemistry/.test(text)) return { key: "chemistry", label: "شیمی", prefix: "textbooks/chemistry-3-grade-12-experimental-math-1405/" };
-  if (/زبان انگلیسی|انگلیسی|english/.test(text)) return { key: "english", label: "زبان انگلیسی", prefix: "textbooks/english/" };
+  if (/زبان|انگلیسی|english/.test(text)) return { key: "english", label: "زبان انگلیسی", prefix: "textbooks/english/" };
   if (/هندسه|geometry/.test(text)) return { key: "geometry", label: "هندسه", prefix: "textbooks/geometry/" };
   if (/فیزیک|physics/.test(text)) return { key: "physics", label: "فیزیک", prefix: "textbooks/physics-3-grade-12-math/" };
   return undefined;
 }
 
 function isQuestionBankPath(path: string): boolean {
-  return /بانک|سوال|سؤال|question.?bank|sample.?exam|نمونه.?آزمون/i.test(path);
+  const fileName = path.split("/").pop() || path;\n  return /بانک|سوال|سؤال|question.?bank|sample.?exam|نمونه.?آزمون/i.test(fileName);
 }
 
 async function getAttachment(file: TreeFile): Promise<NonNullable<GeminiMessage["attachments"]>[number]> {
