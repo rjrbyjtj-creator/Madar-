@@ -7,6 +7,7 @@ import { Plan } from "../models/Plan.js";
 import { StudyFile } from "../models/StudyFile.js";
 import { StudentAcademicHistory } from "../models/StudentAcademicHistory.js";
 import { Exam } from "../models/Exam.js";
+import { QuestionBankItem } from "../models/QuestionBankItem.js";
 import { AppError } from "../utils/errors.js";
 import { env } from "../config/env.js";
 import { generateGeminiReply, uploadGeminiFile, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
@@ -596,12 +597,38 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const examIntentContext = history.slice(-6).map((item) => item.content).join("\\n");
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
+  const examBankContext = examGenerationMode ? await (async () => {
+    const normalized = normalizeExamIntentText(latestUserMessage);
+    const terms = [...new Set(normalized.split(/[^\\p{L}\\p{N}]+/u).filter((term) => term.length >= 3))].slice(0, 8);
+    const filter: Record<string, unknown> = { isActive: true };
+    if (terms.length) {
+      filter.$or = terms.flatMap((term) => {
+        const escaped = term.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\  const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);");
+        return [
+          { question: { $regex: escaped, $options: "i" } },
+          { chapter: { $regex: escaped, $options: "i" } },
+          { subject: { $regex: escaped, $options: "i" } },
+        ];
+      });
+    }
+    const items = await QuestionBankItem.find(filter)
+      .sort({ createdAt: -1 }).limit(6)
+      .select("question subject grade chapter questionType difficulty source").lean();
+    if (!items.length) return "";
+    return "نمونه‌های مرتبط از بانک سؤال اختصاصی مدار (صرفاً برای الهام از تیپ، ساختار، عمق مفهومی و سطح دشواری؛ عیناً کپی نکن و داده‌ها/اعداد/شرایط را تازه طراحی کن):\\n" +
+      items.map((item, index) => [
+        (index + 1) + ". درس: " + item.subject + "؛ پایه: " + (item.grade || "نامشخص") +
+        "؛ فصل: " + (item.chapter || "نامشخص") + "؛ تیپ: " + item.questionType + "؛ دشواری: " + item.difficulty,
+        item.question,
+      ].join("\\n")).join("\\n\\n").slice(0, 6500);
+  })() : "";
+
   const studyFilesContext = isStudyFilesRequest(latestUserMessage)
     ? await buildStudyFilesContext()
     : undefined;
   const textbookContext = await retrieveTextbookContext(latestUserMessage, history.slice(-6).map((item) => item.content).join("\n"));
   const examKnowledgeContext = examGenerationMode && textbookContext ? textbookContext.slice(0, 7000) : textbookContext;
-  const availableFilesContext = [studyFilesContext, examKnowledgeContext].filter(Boolean).join("\n\n") || undefined;
+  const availableFilesContext = [studyFilesContext, examKnowledgeContext, examBankContext].filter(Boolean).join("\n\n") || undefined;
   const plannerContext = plannerRelevant
     ? [
         await buildPlannerContext(user._id, parsed.data.localDate),
@@ -687,6 +714,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       "اگر دانش‌آموز کتاب، فایل یا جزوه مشخصی را مبنا قرار داده و PDF آن پیوست است، خود PDF را بخوان و فقط از محدوده خواسته‌شده سؤال طرح کن. اگر متن بازیابی‌شده از مسیر textbooks در availableFilesContext وجود دارد، آن را مبنای سؤال‌ها قرار بده. منبع نامرتبط یا صرفاً دانش عمومی را جایگزین کتاب درخواستی نکن.",
       "اگر دانش‌آموز صریحاً یک کتاب/فایل/جزوه را مبنا قرار داده اما هیچ منبعی از همان کتاب در availableFilesContext یا پیوست‌ها موجود نیست، به‌جای ساخت آزمون حدسی فقط JSON دارای کلید clarification با یک درخواست کوتاه برای بارگذاری فایل یا مشخص‌کردن عنوان دقیق کتاب برگردان.",
       "سؤال‌ها را با نوع و سطحی که کاربر خواسته طراحی کن؛ اگر نوع را مشخص نکرد، ترکیبی متناسب با درس و مبحث انتخاب کن. در برگه فقط صورت سؤال و گزینه‌ها/داده‌های لازم باشد، نه پاسخ‌نامه یا راه‌حل.",
+      "اگر بخش بانک سؤال اختصاصی مدار در availableFilesContext وجود دارد، ابتدا الگوهای آن را تحلیل کن: تیپ‌ها، شیوه طرح صورت سؤال، ترکیب مفاهیم، سطح دشواری و نوع استدلال. سپس سؤال‌های کاملاً تازه و متناسب با محدوده درخواستی بساز؛ از کپی مستقیم یا بازنویسی سطحی نمونه‌ها خودداری کن. اگر نمونه‌ای به مبحث درخواستی مربوط نیست، نادیده‌اش بگیر. بانک سؤال مرجع سبک طراحی است، نه جایگزین صحت علمی کتاب درسی.",
       'ساختار دقیق: {"examTitle":string,"subject":string,"grade":string,"field":string,"duration":string,"totalScore":number,"questions":[{"number":number,"text":string,"score":number,"section":string,"answerLines":number,"figureSvg":string,"figureAlt":string}]}',
       "نسخه پایه: دقیقاً ۵ سؤال متنوع متناسب با درس (در صورت تناسب، ترکیبی از تستی و تشریحی)، بارم کل ۲۰ نمره و زمان ۶۰ دقیقه؛ مگر اینکه کاربر تعداد، نوع، بارم یا زمان دیگری خواسته باشد. نمره هر سؤال مثبت باشد و مجموع نمره‌ها دقیقاً برابر totalScore شود.",
       "نام درس، پایه، رشته، فصل و محدوده‌ای را که کاربر گفته دقیق رعایت کن. صورت هر سؤال باید کامل، روشن، مستقل و قابل پاسخ باشد. پاسخ یا راه‌حل را داخل برگه ننویس. برای هر سؤال ۲ تا ۴ خط پاسخ پیشنهاد بده. واحدها را به زبان طبیعی و خوانا بنویس (مثلاً «۵ کیلوگرم»)، نه به شکل کد. اگر نماد یا فرمول لازم است از TeX درون‌خطی با delimiters استاندارد \\( ... \\) استفاده کن؛ مثلاً \\(5\\,\\mathrm{kg}\\). هرگز فرمول را داخل backticks یا code fence نگذار و هیچ قطعه کدی تولید نکن.",
