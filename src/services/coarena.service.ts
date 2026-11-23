@@ -16,6 +16,12 @@ export type CoarenaMessage = { role: "user" | "model"; content: string };
 
 const BASE_URL = "https://coarena.ai/api/v1";
 
+const COARENA_FREE_MODEL_IDS = [
+  "gpt-6-luna",
+  "gemini-3-8-flash",
+  "deepseek-v4-1-flash-1017",
+] as const;
+
 export async function fetchCoarenaModels(): Promise<string[]> {
   if (!env.COARENA_API_KEY) throw new AppError(503, "COARENA_NOT_CONFIGURED", "کلید Coarena روی سرور تنظیم نشده است.");
   const response = await fetch(BASE_URL + "/models", {
@@ -24,8 +30,10 @@ export async function fetchCoarenaModels(): Promise<string[]> {
   });
   if (!response.ok) throw new AppError(response.status === 401 ? 503 : 502, "COARENA_MODELS_FAILED", "دریافت فهرست مدل‌های Coarena ناموفق بود.");
   const data = await response.json() as { data?: Array<{ id?: string }> };
-  const ids = (data.data ?? []).map((item) => item.id).filter((id): id is string => typeof id === "string" && /^[a-zA-Z0-9._:-]{1,160}$/.test(id));
-  return ids.length ? ids : [...COARENA_MODEL_IDS];
+  const available = new Set((data.data ?? []).map((item) => item.id).filter((id): id is string => typeof id === "string"));
+  // Coarena's API catalog also lists paid models; this account is on the free tier.
+  // Expose only models the provider explicitly confirms are available to free accounts.
+  return COARENA_FREE_MODEL_IDS.filter((id) => available.size === 0 || available.has(id));
 }
 
 export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: string, systemContext = ""): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
@@ -54,6 +62,7 @@ export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: 
       const detail = (await response.text()).slice(0, 300);
       console.error("[AI] Coarena HTTP error:", response.status, detail);
       if (response.status === 401 || response.status === 403) throw new AppError(503, "COARENA_AUTH_FAILED", "کلید Coarena معتبر نیست یا دسترسی API فعال نیست.");
+      if (response.status === 402) throw new AppError(402, "COARENA_PAID_MODEL", "این مدل در طرح رایگان Coarena فعال نیست. یکی از مدل‌های رایگان را انتخاب کن.");
       if (response.status === 429) throw new AppError(429, "COARENA_RATE_LIMITED", "محدودیت درخواست یا سهمیه Coarena فعال شده است.");
       throw new AppError(response.status >= 500 ? 503 : 502, "COARENA_PROVIDER_ERROR", "سرویس Coarena در حال حاضر نتوانست پاسخ بدهد.");
     }
