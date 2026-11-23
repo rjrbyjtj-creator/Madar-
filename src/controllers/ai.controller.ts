@@ -201,7 +201,7 @@ async function generateExamInStages(
   messages: GeminiMessage[],
   context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string },
   model: typeof GEMINI_MODEL_IDS[number],
-): Promise<{ text: string }> {
+): Promise<{ text: string; planProposal?: undefined; planDeletionProposal?: undefined }> {
   const latest = messages[messages.length - 1];
   if (!latest) throw new Error("پیام آزمون پیدا نشد.");
   const baseInstructions = context.articleWriterContext ?? "";
