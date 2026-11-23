@@ -641,10 +641,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ...(parsed.data.screenFrame ? { screenFrame: parsed.data.screenFrame } : {}),
     },
   ];
-  const examSourceRequested = /(از\\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\\s*(کتاب|جزوه)|بر\\s*اساس\\s*(کتاب|جزوه))/i.test(normalizeExamIntentText(latestUserMessage));
+  const examSourceRequested = /(از\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه))/i.test(normalizeExamIntentText(latestUserMessage));
   const examSourceAvailable = conversationDocuments.length > 0 ||
     Boolean(textbookPdfAttachment) ||
-    Boolean(availableFilesContext && /مسیر منابع:[\\s\\S]*textbooks\\//i.test(availableFilesContext));
+    Boolean(availableFilesContext && /مسیر منابع:[\s\S]*textbooks\//i.test(availableFilesContext));
   const examSourceMissing = examGenerationMode && examSourceRequested && !examSourceAvailable;
 
   const aiStudentContext = {
