@@ -161,12 +161,12 @@ function splitDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
   };
 
   for (const line of lines) {
-    const match = line.match(/^(#{1,4})\\s+(.+)$/);
+    const match = line.match(/^(#{1,4})\s+(.+)$/);
     if (match) {
       flush();
       const headingLevel = match[1].length;
       heading = match[2].trim();
-      const pageMatch = heading.match(/صفحه\\s*چاپی\\s*(\\d+)\\s*\\|\\s*صفحه\\s*PDF\\s*(\\d+)/i);
+      const pageMatch = heading.match(/صفحه\s*چاپی\s*(\d+)\s*\|\s*صفحه\s*PDF\s*(\d+)/i);
       if (pageMatch) {
         printedPage = Number(pageMatch[1]);
         pdfPage = Number(pageMatch[2]);
@@ -175,7 +175,7 @@ function splitDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
         printedPage = undefined;
         pdfPage = undefined;
       }
-      if (/فصل\\s*(اول|دوم|سوم|چهارم|\\d+)/.test(heading)) chapter = heading;
+      if (/فصل\s*(اول|دوم|سوم|چهارم|\d+)/.test(heading)) chapter = heading;
     } else {
       buffer.push(line);
     }
