@@ -95,15 +95,19 @@ function expandQueryTokens(tokens: string[]): Array<{ token: string; weight: num
   return [...weighted].map(([token, weight]) => ({ token, weight }));
 }
 
-function extractRequestedChapter(question: string): string | undefined {
-  const value = normalize(question);
-  const match = value.match(/(?:فصل|بخش)\s*(اول|دوم|سوم|چهارم|پنجم|ششم|هفتم|هشتم|نهم|دهم|\d{1,2})/);
+function canonicalChapter(value: string): string | undefined {
+  const normalized = normalize(value);
+  const match = normalized.match(/(?:فصل|بخش)\s*(اول|دوم|سوم|چهارم|پنجم|ششم|هفتم|هشتم|نهم|دهم|\d{1,2})/);
   if (!match) return undefined;
-  const aliases: Record<string, string> = {
-    "1": "اول", "2": "دوم", "3": "سوم", "4": "چهارم", "5": "پنجم",
-    "6": "ششم", "7": "هفتم", "8": "هشتم", "9": "نهم", "10": "دهم",
+  const numbers: Record<string, string> = {
+    "اول": "1", "دوم": "2", "سوم": "3", "چهارم": "4", "پنجم": "5",
+    "ششم": "6", "هفتم": "7", "هشتم": "8", "نهم": "9", "دهم": "10",
   };
-  return "فصل " + (aliases[match[1]] ?? match[1]);
+  return "فصل " + (numbers[match[1]] ?? String(Number(match[1])));
+}
+
+function extractRequestedChapter(question: string): string | undefined {
+  return canonicalChapter(question);
 }
 
 function extractPrintedPage(question: string): number | undefined {
@@ -196,7 +200,7 @@ function splitDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
         printedPage = undefined;
         pdfPage = undefined;
       }
-      if (/فصل\s*(اول|دوم|سوم|چهارم|\d+)/.test(heading)) chapter = heading;
+      if (/(?:فصل|بخش)\s*(?:اول|دوم|سوم|چهارم|پنجم|ششم|هفتم|هشتم|نهم|دهم|\d{1,2})/.test(heading)) chapter = canonicalChapter(heading) ?? chapter;
     } else {
       buffer.push(line);
     }
@@ -228,8 +232,8 @@ async function splitPdfDocument(path: string, buffer: Buffer, category: "textboo
   for (let index = 0; index < pages.length; index++) {
     const pageText = pages[index].replace(/\r/g, "").trim();
     if (!pageText) continue;
-    const chapterMatch = pageText.match(/(?:فصل|بخش)\s*(اول|دوم|سوم|چهارم|پنجم|ششم|\d+)/);
-    if (chapterMatch) chapter = chapterMatch[0];
+    const chapterMatch = pageText.match(/(?:فصل|بخش)\s*(اول|دوم|سوم|چهارم|پنجم|ششم|هفتم|هشتم|نهم|دهم|\d{1,2})/);
+    if (chapterMatch) chapter = canonicalChapter(chapterMatch[0]) ?? chapter;
     const paragraphs = pageText.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
     let current = "";
     const push = () => {
