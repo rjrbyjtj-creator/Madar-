@@ -119,6 +119,36 @@ const generatedExamSchema = z.object({
   })).min(12).max(18),
 });
 
+
+function parseRubricMark(value: string): number {
+  const normalized = value
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632))
+    .replace(/[٫،/]/g, ".")
+    .replace(/,/g, ".");
+  return Number(normalized);
+}
+
+function validateQuestionRubric(questions: Array<{ number: number; text: string; score: number }>): void {
+  const markPattern = /\(?\s*([0-9۰-۹٠-٩]+(?:[٫.,/][0-9۰-۹٠-٩]+)?)\s*(?:نمره|امتیاز)\s*\)?/g;
+  const subpartPattern = /(?:^|\n)\s*(?:الف|ب|پ|ت|ث|ج|د)\s*[).ـ:：-]/u;
+  for (const question of questions) {
+    const marks = [...question.text.matchAll(markPattern)].map((match) => parseRubricMark(match[1]));
+    if (marks.some((mark) => !Number.isFinite(mark) || mark <= 0 || Math.abs(mark * 4 - Math.round(mark * 4)) > 0.001)) {
+      throw new Error("بارم یکی از زیربخش‌های سؤال " + question.number + " معتبر نیست.");
+    }
+    if (subpartPattern.test(question.text) && !marks.length) {
+      throw new Error("بارم زیربخش‌های سؤال " + question.number + " مشخص نشده است.");
+    }
+    if (marks.length) {
+      const sum = marks.reduce((total, mark) => total + mark, 0);
+      if (Math.abs(sum - question.score) > 0.001) {
+        throw new Error("جمع بارم زیربخش‌های سؤال " + question.number + " با بارم سؤال اصلی برابر نیست.");
+      }
+    }
+  }
+}
+
 function parseExamJsonCandidate(candidate: string): unknown {
   try {
     return JSON.parse(candidate) as unknown;
@@ -860,6 +890,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         const questions = validated.data.questions;
         const sequential = questions.every((question, index) => question.number === index + 1);
         if (!sequential) throw new Error("شماره سؤال‌ها باید از ۱ تا تعداد سؤال‌ها پیوسته و بدون تکرار باشد.");
+        validateQuestionRubric(questions);
         if (Math.abs(sum - targetTotalScore) > 0.001 || Math.abs(validated.data.totalScore - targetTotalScore) > 0.001) {
           console.error("[EXAM] score total mismatch:", { sum, declared: validated.data.totalScore, targetTotalScore });
           throw new Error("جمع بارم آزمون دقیقاً برابر نمره کل درخواستی نیست؛ از تغییر مقیاس خودکار بارم جلوگیری شد.");
