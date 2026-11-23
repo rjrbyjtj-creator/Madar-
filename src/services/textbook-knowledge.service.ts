@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import pdfParse from "pdf-parse";
 import { uploadGeminiFile } from "./gemini.service.js";
 
 const API_BASE = "https://api.github.com";
@@ -7,9 +8,9 @@ const REPOSITORY = process.env.ROBO_KNOWLEDGE_REPOSITORY?.trim() || "Robo-Knowle
 const BRANCH = process.env.ROBO_KNOWLEDGE_BRANCH?.trim() || "main";
 const TOKEN = process.env.ROBO_KNOWLEDGE_GITHUB_TOKEN?.trim() || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const MAX_FILES = 80;
-const MAX_FILE_BYTES = 1_000_000;
-const MAX_TOTAL_BYTES = 12_000_000;
+const MAX_FILES = 160;
+const MAX_FILE_BYTES = 15_000_000;
+const MAX_TOTAL_BYTES = 45_000_000;
 const CHUNK_TARGET_CHARS = 1800;
 const MAX_CONTEXT_CHUNKS = 10;
 
@@ -75,7 +76,7 @@ const QUERY_EXPANSIONS: Record<string, string[]> = {
   "اسید": ["باز", "ph", "pH", "یون هیدرونیوم"],
   "باز": ["اسید", "ph", "pH", "یون هیدروکسید"],
   "اکسایش": ["کاهش", "عدد اکسایش", "الکترون", "ردوکس"],
-  "کاهش": ["اکسایش", "عدد اکسایش", "الکترون", "ردوکس"],
+  "کاهش": ["اکسایش", "عدد اکسایش", "الکترون", "ردوکس"],\n  "هندسه": ["فصل", "اثبات", "قضیه", "بردار", "ماتریس", "مخروط", "دایره"],\n  "بردار": ["هندسه", "ضرب داخلی", "مختصات", "مولفه"],\n  "مخروط": ["هندسه", "مقاطع مخروطی", "بیضی", "سهمی", "هذلولی"],
 };
 
 function expandQueryTokens(tokens: string[]): Array<{ token: string; weight: number }> {
@@ -98,7 +99,7 @@ function extractPrintedPage(question: string): number | undefined {
   return Number.isInteger(page) && page > 0 && page <= 200 ? page : undefined;
 }
 
-function detectBookSubject(question: string): "chemistry" | "physics" | undefined {
+function detectBookSubject(question: string): "chemistry" | "physics" | "geometry" | "english" | undefined {
   const normalized = normalize(question);
   if (/شیمی/.test(normalized)) return "chemistry";
   if (/فیزیک/.test(normalized)) return "physics";
@@ -184,6 +185,38 @@ function splitDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
   return result;
 }
 
+async function splitPdfDocument(path: string, buffer: Buffer, category: "textbook" | "question-bank"): Promise<KnowledgeChunk[]> {
+  const parsed = await pdfParse(buffer);
+  const pages = String(parsed.text || "").split("\\f");
+  const title = titleFromPath(path);
+  const result: KnowledgeChunk[] = [];
+  let chapter: string | undefined;
+  for (let index = 0; index < pages.length; index++) {
+    const pageText = pages[index].replace(/\\r/g, "").trim();
+    if (!pageText) continue;
+    const chapterMatch = pageText.match(/(?:فصل|بخش)\\s*(اول|دوم|سوم|چهارم|پنجم|ششم|\\d+)/);
+    if (chapterMatch) chapter = chapterMatch[0];
+    const paragraphs = pageText.split(/\\n\\s*\\n/).map((part) => part.trim()).filter(Boolean);
+    let current = "";
+    const push = () => {
+      const body = current.trim();
+      if (!body) return;
+      result.push({
+        path, title, heading: title + " | صفحه PDF " + (index + 1), text: body,
+        category, pdfPage: index + 1, chapter,
+        tokens: new Set(tokenize([title, chapter ?? "", body].join(" "))),
+      });
+      current = "";
+    };
+    for (const paragraph of paragraphs) {
+      if (current && current.length + paragraph.length > CHUNK_TARGET_CHARS) push();
+      current += (current ? "\\n\\n" : "") + paragraph;
+    }
+    push();
+  }
+  return result;
+}
+
 function decodeGitHubContent(encoded: string): string {
   return Buffer.from(encoded.replace(/\s/g, ""), "base64").toString("utf8");
 }
@@ -247,8 +280,8 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
       }
     }
 
-    const chunks = docs.flatMap(splitDocument);
-    console.info("[TEXTBOOK] private knowledge index loaded", { files: docs.length, chunks: chunks.length, bytes: totalBytes, repository: OWNER + "/" + REPOSITORY, branch: BRANCH });
+    const chunks = [...docs.flatMap(splitDocument), ...chunksFromPdfs];
+    console.info("[TEXTBOOK] private knowledge index loaded", { markdownFiles: docs.length, pdfChunks: chunksFromPdfs.length, chunks: chunks.length, bytes: totalBytes, repository: OWNER + "/" + REPOSITORY, branch: BRANCH });
     if (!chunks.length) throw new Error("No Markdown knowledge documents were found in Robo-Knowledge");
     cache = { chunks, expiresAt: Date.now() + CACHE_TTL_MS };
     return chunks;
