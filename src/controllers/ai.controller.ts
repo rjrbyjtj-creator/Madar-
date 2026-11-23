@@ -603,6 +603,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
   const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
+  // Never pass a model ID belonging to another provider into Gemini.
+  const selectedGeminiModelId = selectedProvider === "gemini"
+    ? (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash")
+    : (env.GEMINI_MODEL ?? "gemini-3.8-flash");
   const recentConversationContext = history.slice(-6).map((item) => item.content).join("\n");
   const textbookPdfAttachment = (selectedProvider === "gemini" || examGenerationMode) && textbookContext
     ? await getTextbookPdfAttachment(latestUserMessage, recentConversationContext)
@@ -678,7 +682,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
       : examGenerationMode
         ? conversationDocuments.length || textbookPdfAttachment
-          ? await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
+          ? await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
           : selectedProvider === "groq"
             ? await generateGroqReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
             : selectedProvider === "openrouter"
@@ -687,7 +691,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
                 ? await generateCloudflareReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
                 : selectedProvider === "huggingface"
                   ? await generateHuggingFaceReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
-                  : await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
+                  : await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
@@ -699,7 +703,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
             : await generateGeminiReply(
               aiMessages,
               aiStudentContext,
-              (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number],
+              selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number],
             );
 
   let examPaper: { filename: string; html: string } | undefined;
@@ -769,7 +773,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ...(planProposal ? { planProposal } : {}),
     ...(planDeletionProposal ? { planDeletionProposal } : {}),
     ...(examPaper ? { examPaper } : {}),
-    model: examGenerationMode ? "gemini" : selectedProvider,
+    model: examGenerationMode && (conversationDocuments.length || textbookPdfAttachment) ? "gemini" : selectedProvider,
     conversationId,
     title,
   });
