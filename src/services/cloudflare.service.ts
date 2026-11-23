@@ -10,7 +10,7 @@ import {
 
 export const CLOUDFLARE_MODEL_IDS = [
   "@cf/zai-org/glm-4.7-flash",
-  "@cf/ibm/granite-4.0-h-micro",
+  "@cf/ibm-granite/granite-4.0-h-micro",
   "@cf/google/gemma-4-26b-a4b-it",
   "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   "@cf/mistralai/mistral-small-3.1-24b-instruct",
