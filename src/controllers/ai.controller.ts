@@ -599,7 +599,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
   const examBankContext = examGenerationMode ? await (async () => {
     const normalized = normalizeExamIntentText(latestUserMessage);
-    const terms = [...new Set(normalized.split(/[^\p{L}\p{N}]+/u).filter((term) => term.length >= 3))].slice(0, 8);
+    const stopWords = new Set(["برای", "برام", "یه", "یک", "از", "در", "را", "با", "این", "اون", "همه", "کتاب", "فصل", "مبحث", "آزمون", "امتحان", "بساز", "طراحی", "کن", "نمره", "سوال", "سؤال"]);
+    const terms = [...new Set(normalized.split(/[^\p{L}\p{N}]+/u).filter((term) => term.length >= 3 && !stopWords.has(term)))].slice(0, 8);
     const filter: Record<string, unknown> = { isActive: true };
     if (terms.length) {
       filter.$or = terms.flatMap((term) => {
