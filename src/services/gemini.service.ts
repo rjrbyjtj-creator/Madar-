@@ -38,8 +38,8 @@ export const GEMINI_MODEL_IDS = [
 const TTS_MODEL = env.GEMINI_TTS_MODEL;
 
 /** Hard cap so a single slow model never burns 30–60s. */
-const PRIMARY_TIMEOUT_MS = 18_000;
-const FALLBACK_TIMEOUT_MS = 12_000;
+const PRIMARY_TIMEOUT_MS = 600_000;
+const FALLBACK_TIMEOUT_MS = 600_000;
 
 function getGeminiApiKeys(): string[] {
   return [env.GEMINI_API_KEY, env.GEMINI_API_KEY_2, env.GEMINI_API_KEY_3, env.GEMINI_API_KEY_4, env.GEMINI_API_KEY_5]
