@@ -39,9 +39,30 @@ const chatSchema = z.object({
 
 type AuthUser = { _id: mongoose.Types.ObjectId; name?: string; role?: string; schoolName?: string; officialSchoolName?: string; grade?: string; fieldOfStudy?: string };
 
-function isExamGenerationRequest(message: string): boolean {
-  return /(آزمون|امتحان|نمونه.?سؤال|نمونه.?سوال)/i.test(message) &&
-    /(طراحی|طرح|بساز|تهیه|آماده|تولید|درست کن)/i.test(message);
+function normalizeExamIntentText(value: string): string {
+  return value
+    .replace(/[يى]/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[\\u064B-\\u065F\\u0670]/g, "")
+    .replace(/[\\u200c\\u200f\\u202a-\\u202e]/g, " ")
+    .replace(/[ۀة]/g, "ه")
+    .replace(/\\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function isExamGenerationRequest(message: string, conversationContext = ""): boolean {
+  const current = normalizeExamIntentText(message);
+  const combined = normalizeExamIntentText(message + " " + conversationContext);
+  const hasExamIntent = /(آزمون|امتحان|نمونه\\s*سوال|نمونه\\s*سؤال|آزمونک|کوییز|کوئیز|quiz|برگه\\s*امتحان)/i.test(combined);
+  if (!hasExamIntent) return false;
+
+  const hasCreationIntent = /(طراحی|طرح|بساز|ساخت|تهیه|آماده|تولید|درست\\s*کن|ایجاد|برام\\s*بساز|برام\\s*طراحی|فایل\\s*(کن|بده|بساز)|خروجی\\s*بگیر)/i.test(current);
+  const hasExamScope = /(از\\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\\s*(کتاب|جزوه)|بر\\s*اساس\\s*(کتاب|جزوه)|برای\\s*(فصل|مبحث|درس))/i.test(current);
+  const isExamFollowup = /(همون|همان|حالا|خب|پس|این\\s*رو|اونو|همین).{0,35}(بساز|طراحی|تهیه|آماده|فایل|درست\\s*کن)/i.test(current) &&
+    /(آزمون|امتحان|سوال|سؤال)/i.test(normalizeExamIntentText(conversationContext));
+
+  return hasCreationIntent || hasExamScope || isExamFollowup;
 }
 
 function normalizeExamNumber(value: unknown): unknown {
@@ -557,7 +578,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
-  const examGenerationMode = isExamGenerationRequest(latestUserMessage);
+  const examIntentContext = history.slice(-6).map((item) => item.content).join("\\n");
+  const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
   const studyFilesContext = isStudyFilesRequest(latestUserMessage)
     ? await buildStudyFilesContext()
     : undefined;
@@ -583,7 +605,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     isExactTodayPlanReadRequest(latestUserMessage);
   const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
   const recentConversationContext = history.slice(-6).map((item) => item.content).join("\n");
-  const textbookPdfAttachment = selectedProvider === "gemini" && textbookContext
+  const textbookPdfAttachment = (selectedProvider === "gemini" || examGenerationMode) && textbookContext
     ? await getTextbookPdfAttachment(latestUserMessage, recentConversationContext)
     : undefined;
   const conversationDocuments = (conversation.documents ?? []).map((document) => ({
@@ -599,7 +621,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   if (parsed.data.screenFrame && selectedProvider !== "gemini") {
     throw new AppError(400, "SCREEN_SHARE_REQUIRES_GEMINI", "برای تحلیل صفحهٔ به‌اشتراک‌گذاشته‌شده، مدل Gemini را انتخاب کن.");
   }
-  if (conversationDocuments.length && selectedProvider !== "gemini") {
+  if (conversationDocuments.length && selectedProvider !== "gemini" && !examGenerationMode) {
     throw new AppError(400, "PDF_REQUIRES_GEMINI", "برای خواندن PDF، نمودارها و فرمول‌های آن، مدل Gemini را انتخاب کن.");
   }
   const aiMessages: GeminiMessage[] = [
@@ -620,6 +642,12 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ...(parsed.data.screenFrame ? { screenFrame: parsed.data.screenFrame } : {}),
     },
   ];
+  const examSourceRequested = /(از\\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\\s*(کتاب|جزوه)|بر\\s*اساس\\s*(کتاب|جزوه))/i.test(normalizeExamIntentText(latestUserMessage));
+  const examSourceAvailable = conversationDocuments.length > 0 ||
+    Boolean(textbookPdfAttachment) ||
+    Boolean(availableFilesContext && /مسیر منابع:[\\s\\S]*textbooks\\//i.test(availableFilesContext));
+  const examSourceMissing = examGenerationMode && examSourceRequested && !examSourceAvailable;
+
   const aiStudentContext = {
     name: user.name,
     role: user.role,
@@ -630,7 +658,11 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     localDate: parsed.data.localDate,
     studentProfileContext,
     articleWriterContext: examGenerationMode ? [
-      "حالت طراحی آزمون تشریحی فعال است. فقط یک JSON معتبر برگردان؛ هیچ متن، توضیح یا Markdown بیرون JSON ننویس.",
+      "حالت ساخت برگه آزمون فعال است. خروجی نهایی فقط یک JSON معتبر مطابق ساختار تعیین‌شده باشد؛ هیچ سؤال، فهرست سؤال، پاسخ یا توضیح آزمون را به شکل متن چت یا Markdown بیرون JSON ننویس. این JSON در سرور به برگه رسمی قالب‌بندی‌شده تبدیل و به‌صورت فایل قابل پیش‌نمایش و ذخیره به دانش‌آموز نمایش داده می‌شود.",
+      "درخواست‌های محاوره‌ای مانند «برام از کتاب ... فلان مبحث یه آزمون بساز»، «یه امتحان فایل‌شده بده»، «از این فصل آزمون بگیر» و عبارت‌های مشابه همگی درخواست ساخت برگه آزمون هستند؛ تا وقتی اطلاعات ضروری منبع یا درس مبهم نیست، سؤال‌ها را در متن چت ننویس.",
+      "اگر دانش‌آموز کتاب، فایل یا جزوه مشخصی را مبنا قرار داده و PDF آن پیوست است، خود PDF را بخوان و فقط از محدوده خواسته‌شده سؤال طرح کن. اگر متن بازیابی‌شده از مسیر textbooks در availableFilesContext وجود دارد، آن را مبنای سؤال‌ها قرار بده. منبع نامرتبط یا صرفاً دانش عمومی را جایگزین کتاب درخواستی نکن.",
+      "اگر دانش‌آموز صریحاً یک کتاب/فایل/جزوه را مبنا قرار داده اما هیچ منبعی از همان کتاب در availableFilesContext یا پیوست‌ها موجود نیست، به‌جای ساخت آزمون حدسی فقط JSON دارای کلید clarification با یک درخواست کوتاه برای بارگذاری فایل یا مشخص‌کردن عنوان دقیق کتاب برگردان.",
+      "سؤال‌ها را با نوع و سطحی که کاربر خواسته طراحی کن؛ اگر نوع را مشخص نکرد، ترکیبی متناسب با درس و مبحث انتخاب کن. در برگه فقط صورت سؤال و گزینه‌ها/داده‌های لازم باشد، نه پاسخ‌نامه یا راه‌حل."
       'ساختار دقیق: {"examTitle":string,"subject":string,"grade":string,"field":string,"duration":string,"totalScore":number,"questions":[{"number":number,"text":string,"score":number,"section":string,"answerLines":number,"figureSvg":string,"figureAlt":string}]}',
       "نسخه پایه: دقیقاً ۵ سؤال تشریحی، بارم کل ۲۰ نمره و زمان ۶۰ دقیقه؛ مگر اینکه کاربر تعداد، بارم یا زمان دیگری خواسته باشد. نمره هر سؤال مثبت باشد و مجموع نمره‌ها دقیقاً برابر totalScore شود.",
       "نام درس، پایه، رشته، فصل و محدوده‌ای را که کاربر گفته دقیق رعایت کن. صورت هر سؤال باید کامل، روشن، مستقل و قابل پاسخ باشد. پاسخ یا راه‌حل را داخل برگه ننویس. برای هر سؤال ۲ تا ۴ خط پاسخ پیشنهاد بده. واحدها را به زبان طبیعی و خوانا بنویس (مثلاً «۵ کیلوگرم»)، نه به شکل کد. اگر نماد یا فرمول لازم است از TeX درون‌خطی با delimiters استاندارد \\( ... \\) استفاده کن؛ مثلاً \\(5\\,\\mathrm{kg}\\). هرگز فرمول را داخل backticks یا code fence نگذار و هیچ قطعه کدی تولید نکن.",
@@ -641,18 +673,22 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ].join("\n") : undefined,
   };
 
-  const aiResult = exactTodayRead
-    ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
-    : examGenerationMode
-      ? selectedProvider === "groq"
-        ? await generateGroqReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
-        : selectedProvider === "openrouter"
-          ? await generateOpenRouterReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? OPENROUTER_MODEL_IDS[0]) as typeof OPENROUTER_MODEL_IDS[number])
-          : selectedProvider === "cloudflare"
-            ? await generateCloudflareReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
-            : selectedProvider === "huggingface"
-              ? await generateHuggingFaceReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
-              : await generateGeminiReply([{ role: "user", content: latestUserMessage }], { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
+  const aiResult = examSourceMissing
+    ? { text: JSON.stringify({ clarification: "برای اینکه آزمون دقیقاً از همان کتاب و مبحث باشد، لطفاً فایل PDF کتاب/جزوه را در همین گفتگو پیوست کن یا عنوان دقیق کتاب و پایه را بگو." }), planProposal: undefined, planDeletionProposal: undefined }
+    : exactTodayRead
+      ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
+      : examGenerationMode
+        ? conversationDocuments.length || textbookPdfAttachment
+          ? await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
+          : selectedProvider === "groq"
+            ? await generateGroqReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
+            : selectedProvider === "openrouter"
+              ? await generateOpenRouterReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? OPENROUTER_MODEL_IDS[0]) as typeof OPENROUTER_MODEL_IDS[number])
+              : selectedProvider === "cloudflare"
+                ? await generateCloudflareReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
+                : selectedProvider === "huggingface"
+                  ? await generateHuggingFaceReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
+                  : await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash") as typeof GEMINI_MODEL_IDS[number])
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
