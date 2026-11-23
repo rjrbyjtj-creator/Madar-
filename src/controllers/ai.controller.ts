@@ -64,6 +64,23 @@ function isExamGenerationRequest(message: string, conversationContext = ""): boo
 
   return hasCreationIntent || hasExamScope || isExamFollowup;
 }
+function getRequestedExamTotalScore(message: string): number {
+  const normalized = normalizeExamIntentText(message)
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
+  const numericMatch = normalized.match(
+    /(?:از\\s*(\\d{1,3})\\s*(?:نمره|امتیاز)?|(?:بارم(?:\\s*کل)?|مجموع(?:\\s*نمره)?)\\s*(?:\\s*برابر\\s*با)?\\s*(\\d{1,3})|\\b(\\d{1,3})\\s*(?:نمره|امتیاز))/i,
+  );
+  const requested = numericMatch ? Number(numericMatch[1] ?? numericMatch[2] ?? numericMatch[3]) : NaN;
+  if (Number.isInteger(requested) && requested >= 1 && requested <= 100) return requested;
+  const wordMatch = normalized.match(/\\b(ده|پانزده|بیست|بیست و پنج|سی|چهل|پنجاه|صد)\\s*نمره/i);
+  const wordScores: Record<string, number> = {
+    "ده": 10, "پانزده": 15, "بیست": 20, "بیست و پنج": 25,
+    "سی": 30, "چهل": 40, "پنجاه": 50, "صد": 100,
+  };
+  return wordMatch ? wordScores[wordMatch[1]] ?? 20 : 20;
+}
+
 function normalizeExamNumber(value: unknown): unknown {
   if (typeof value !== "string") return value;
   const normalized = value
@@ -736,19 +753,20 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         }
         const sum = validated.data.questions.reduce((total, question) => total + question.score, 0);
         if (sum <= 0) throw new Error("مجموع بارم سؤال‌ها باید بیشتر از صفر باشد.");
+        const targetTotalScore = getRequestedExamTotalScore(latestUserMessage);
         let questions = validated.data.questions;
-        if (Math.abs(sum - validated.data.totalScore) > 0.001) {
-          console.warn("[EXAM] normalizing question scores:", { sum, totalScore: validated.data.totalScore });
+        if (Math.abs(sum - targetTotalScore) > 0.001) {
+          console.warn("[EXAM] normalizing question scores:", { sum, modelTotalScore: validated.data.totalScore, targetTotalScore });
           const normalized = questions.map((question) => ({
             ...question,
-            score: Math.round((question.score / sum) * validated.data.totalScore * 100) / 100,
+            score: Math.round((question.score / sum) * targetTotalScore * 100) / 100,
           }));
           const roundedSum = normalized.reduce((total, question) => total + question.score, 0);
           const lastQuestion = normalized[normalized.length - 1];
-          lastQuestion.score = Math.round((lastQuestion.score + validated.data.totalScore - roundedSum) * 100) / 100;
+          lastQuestion.score = Math.round((lastQuestion.score + targetTotalScore - roundedSum) * 100) / 100;
           questions = normalized;
         }
-        const examData = { ...validated.data, questions, studentName: "" };
+        const examData = { ...validated.data, totalScore: targetTotalScore, questions, studentName: "" };
         const html = await renderExamPaperHtml(examData);
         const slug = validated.data.subject.replace(/[^\p{L}\p{N}-]+/gu, "-").slice(0, 36) || "exam";
         examPaper = { filename: "madar-" + slug + "-exam.html", html };
