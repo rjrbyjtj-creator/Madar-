@@ -385,6 +385,7 @@ export async function generateGeminiReply(
           Date.now() - requestStartedAt,
           "ms",
         );
+        nextGeminiKeyIndex = (nextGeminiKeyIndex + 1) % apiKeys.length;
         return { text, ...(planProposal ? { planProposal } : {}), ...(planDeletionProposal ? { planDeletionProposal } : {}) };
       }
 
@@ -407,6 +408,7 @@ export async function generateGeminiReply(
       }
       // empty / MAX_TOKENS → try the single fallback
       lastStatus = 502;
+      if (keyAttempt + 1 < apiKeys.length) continue;
     } catch (error) {
       if (error instanceof AppError) throw error;
 
