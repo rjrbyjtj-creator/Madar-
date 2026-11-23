@@ -794,7 +794,6 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ...(parsed.data.screenFrame ? { screenFrame: parsed.data.screenFrame } : {}),
     },
   ];
-  const examSourceRequested = /(از\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه))/i.test(normalizeExamIntentText(latestUserMessage));
   const examSourceAvailable = Boolean(examSourceLibrary?.bookAttachments.length && examSourceLibrary?.bankAttachments.length) || conversationDocuments.length > 0;
   const examSourceMissing = examGenerationMode && !examSourceAvailable;
   const examSourceClarification = examSourceLibraryError.includes("TEXTBOOK_PERMISSION_NOT_VERIFIED")
