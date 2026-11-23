@@ -106,11 +106,17 @@ function detectBookSubject(question: string): "chemistry" | "physics" | "geometr
   const normalized = normalize(question);
   if (/شیمی/.test(normalized)) return "chemistry";
   if (/فیزیک/.test(normalized)) return "physics";
+  if (/هندسه/.test(normalized)) return "geometry";
+  if (/زبان|انگلیسی/.test(normalized)) return "english";
   return undefined;
 }
 
-function chunkMatchesSubject(chunk: KnowledgeChunk, subject: "chemistry" | "physics"): boolean {
-  return chunk.path.toLowerCase().includes(subject);
+function chunkMatchesSubject(chunk: KnowledgeChunk, subject: "chemistry" | "physics" | "geometry" | "english"): boolean {
+  const path = normalize(chunk.path);
+  if (subject === "chemistry") return /chemistry|شیمی/.test(path);
+  if (subject === "physics") return /physics|فیزیک/.test(path);
+  if (subject === "geometry") return /geometry|هندسه/.test(path);
+  return /english|زبان|انگلیسی/.test(path);
 }
 
 function isRelevantRequest(question: string): boolean {
