@@ -750,7 +750,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
                 : selectedProvider === "huggingface"
                   ? await generateHuggingFaceReply(providerMessages, examStudentContext, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
                   : selectedProvider === "coarena"
-                    ? await generateCoarenaReply(providerMessages, parsed.data.modelId ?? "gemini-3-8-flash")
+                    ? await generateCoarenaReply(providerMessages, parsed.data.modelId ?? "gemini-3-8-flash", examStudentContext.articleWriterContext ?? "")
                     : await generateGeminiReply(providerMessages, examStudentContext, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
