@@ -146,7 +146,7 @@ export async function updateQuestionBankFileQuestionCount(id: string, questionCo
 
 export async function getQuestionBankFileForProcessing(id: string) {
   const fileRows = rows(await execute(
-    "SELECT id,file_name,mime_type,subject,grade,chapter FROM question_bank_files WHERE id=? AND is_active=1 LIMIT 1", [id]));
+    "SELECT id,file_name,mime_type,subject,grade,chapter,question_count FROM question_bank_files WHERE id=? AND is_active=1 LIMIT 1", [id]));
   if (!fileRows.length) return null;
   const chunks = rows(await execute("SELECT data FROM question_bank_file_chunks WHERE file_id=? ORDER BY chunk_index", [id]));
   if (!chunks.length) throw new Error("محتوای فایل در پایگاه داده پیدا نشد.");
