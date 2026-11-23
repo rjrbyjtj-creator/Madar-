@@ -69,11 +69,11 @@ function getRequestedExamTotalScore(message: string): number {
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
   const numericMatch = normalized.match(
-    /(?:از\\s*(\\d{1,3})\\s*(?:نمره|امتیاز)?|(?:بارم(?:\\s*کل)?|مجموع(?:\\s*نمره)?)\\s*(?:\\s*برابر\\s*با)?\\s*(\\d{1,3})|\\b(\\d{1,3})\\s*(?:نمره|امتیاز))/i,
+    /(?:از\s*(\d{1,3})\s*(?:نمره|امتیاز)?|(?:بارم(?:\s*کل)?|مجموع(?:\s*نمره)?)\s*(?:\s*برابر\s*با)?\s*(\d{1,3})|\b(\d{1,3})\s*(?:نمره|امتیاز))/i,
   );
   const requested = numericMatch ? Number(numericMatch[1] ?? numericMatch[2] ?? numericMatch[3]) : NaN;
   if (Number.isInteger(requested) && requested >= 1 && requested <= 100) return requested;
-  const wordMatch = normalized.match(/\\b(ده|پانزده|بیست|بیست و پنج|سی|چهل|پنجاه|صد)\\s*نمره/i);
+  const wordMatch = normalized.match(/\b(ده|پانزده|بیست|بیست و پنج|سی|چهل|پنجاه|صد)\s*نمره/i);
   const wordScores: Record<string, number> = {
     "ده": 10, "پانزده": 15, "بیست": 20, "بیست و پنج": 25,
     "سی": 30, "چهل": 40, "پنجاه": 50, "صد": 100,
