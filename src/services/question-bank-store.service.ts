@@ -143,6 +143,19 @@ export async function deactivateQuestionBankFile(id:string) {
 export async function updateQuestionBankFileQuestionCount(id: string, questionCount: number) {
   await execute("UPDATE question_bank_files SET question_count=? WHERE id=? AND is_active=1", [questionCount, id], false);
 }
+
+export async function getQuestionBankFileForProcessing(id: string) {
+  const fileRows = rows(await execute(
+    "SELECT id,file_name,mime_type,subject,grade,chapter FROM question_bank_files WHERE id=? AND is_active=1 LIMIT 1", [id]));
+  if (!fileRows.length) return null;
+  const chunks = rows(await execute("SELECT data FROM question_bank_file_chunks WHERE file_id=? ORDER BY chunk_index", [id]));
+  if (!chunks.length) throw new Error("محتوای فایل در پایگاه داده پیدا نشد.");
+  return { ...fileRows[0], buffer: Buffer.concat(chunks.map(row => Buffer.isBuffer(row.data) ? row.data : Buffer.alloc(0))) };
+}
+export async function questionItemExists(question: string, source: string) {
+  const found = rows(await execute("SELECT id FROM question_bank_items WHERE is_active=1 AND source=? AND question=? LIMIT 1", [source, question]));
+  return found.length > 0;
+}
 function extractJsonObject(raw: string): any {
   const cleaned = raw.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
   const start = cleaned.indexOf("{"), end = cleaned.lastIndexOf("}");
