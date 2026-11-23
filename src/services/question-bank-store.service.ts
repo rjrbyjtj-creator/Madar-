@@ -155,7 +155,15 @@ export async function getQuestionBankFileForProcessing(id: string) {
     id: String(file.id), file_name: String(file.file_name), mime_type: String(file.mime_type),
     subject: String(file.subject), grade: String(file.grade), chapter: String(file.chapter || ""),
     question_count: Number(file.question_count || 0),
-    buffer: Buffer.concat(chunks.map(row => Buffer.isBuffer(row.data) ? row.data : Buffer.alloc(0))),
+    buffer: Buffer.concat(chunks.map(row => {
+      const data = row.data;
+      if (Buffer.isBuffer(data)) return data;
+      if (data instanceof Uint8Array) return Buffer.from(data);
+      if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data));
+      if (Array.isArray(data)) return Buffer.from(data);
+      if (typeof data === "string") return Buffer.from(data, "base64");
+      return Buffer.alloc(0);
+    })),
   };
 }
 export async function questionItemExists(question: string, source: string) {
