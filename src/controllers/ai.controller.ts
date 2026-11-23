@@ -14,6 +14,7 @@ import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
 import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
+import { generateCoarenaReply } from "../services/coarena.service.js";
 import { getTextbookPdfAttachment, retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
 import { renderExamPaperHtml } from "../services/exam-paper-template.service.js";
 import { retrieveQuestionBankContext } from "../services/question-bank-store.service.js";
@@ -26,7 +27,7 @@ const messageSchema = z.object({
 const chatSchema = z.object({
   conversationId: z.string().nullable().optional(),
   attachmentId: z.string().optional(),
-  model: z.enum(["gemini", "groq", "grok", "openrouter", "cloudflare", "huggingface"]).optional(),
+  model: z.enum(["gemini", "groq", "grok", "openrouter", "cloudflare", "huggingface", "coarena"]).optional(),
   modelId: z.string().optional(),
   message: z.string().trim().min(1).max(2500).optional(),
   persona: z.enum(["balanced", "friendly", "buddy", "witty"]).optional(),
@@ -636,7 +637,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
 
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
-  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
+  const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : parsed.data.model === "coarena" ? "coarena" : "gemini";
   // Never pass a model ID belonging to another provider into Gemini.
   const selectedGeminiModelId = selectedProvider === "gemini"
     ? (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash")
@@ -748,7 +749,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
                 ? await generateCloudflareReply(providerMessages, examStudentContext, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
                 : selectedProvider === "huggingface"
                   ? await generateHuggingFaceReply(providerMessages, examStudentContext, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
-                  : await generateGeminiReply(providerMessages, examStudentContext, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
+                  : selectedProvider === "coarena"
+                    ? await generateCoarenaReply(providerMessages, parsed.data.modelId ?? "gemini-3-8-flash")
+                    : await generateGeminiReply(providerMessages, examStudentContext, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
@@ -757,7 +760,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
           ? await generateCloudflareReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
           : selectedProvider === "huggingface"
             ? await generateHuggingFaceReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
-            : await generateGeminiReply(
+            : selectedProvider === "coarena"
+              ? await generateCoarenaReply(aiMessages, parsed.data.modelId ?? "gemini-3-8-flash")
+              : await generateGeminiReply(
               aiMessages,
               aiStudentContext,
               selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number],
