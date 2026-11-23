@@ -890,7 +890,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         ? examSourceLibrary?.bookAttachments.length && examSourceLibrary?.bankAttachments.length
           ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"))
           : conversationDocuments.length || textbookPdfAttachment
-            ? await generateExamInStages(providerMessages, examStudentContext, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
+            ? selectedProvider === "gemini"
+              ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, selectedGeminiModelId)
+              : { text: JSON.stringify({ clarification: "برای تحلیل PDF پیوست‌شده در همین گفتگو، فعلاً باید Gemini را انتخاب کنی. برای استفاده از مدل‌های دیگر، فایل کتاب و بانک سؤال باید در کتابخانه متنیِ قابل بازیابی مدار موجود باشند." }) }
             : { text: JSON.stringify({ clarification: "برای طراحی آزمون استاندارد، PDF کتاب درسی و PDF بانک سؤال این درس باید در پوشه کتابخانه Robo-Knowledge موجود باشند. فعلاً یکی از این دو منبع پیدا نشد؛ لطفاً پوشه و نام فایل‌ها را بررسی کن." }) }
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
