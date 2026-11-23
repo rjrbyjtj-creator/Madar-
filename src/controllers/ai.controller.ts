@@ -583,7 +583,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ? await buildStudyFilesContext()
     : undefined;
   const textbookContext = await retrieveTextbookContext(latestUserMessage, history.slice(-6).map((item) => item.content).join("\n"));
-  const availableFilesContext = [studyFilesContext, textbookContext].filter(Boolean).join("\n\n") || undefined;
+  const examKnowledgeContext = examGenerationMode && textbookContext ? textbookContext.slice(0, 7000) : textbookContext;
+  const availableFilesContext = [studyFilesContext, examKnowledgeContext].filter(Boolean).join("\n\n") || undefined;
   const plannerContext = plannerRelevant
     ? [
         await buildPlannerContext(user._id, parsed.data.localDate),
@@ -610,7 +611,8 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const recentConversationContext = history.slice(-6).map((item) => item.content).join("\n");
   // Indexed textbook Markdown is already available to every provider through availableFilesContext.
   // Attach the original PDF only when Gemini is selected (for diagrams and page-level visual analysis).
-  const textbookPdfAttachment = selectedProvider === "gemini" && textbookContext
+  const needsTextbookVisual = /(شکل|نمودار|تصویر|عکس|مدار|قرقره|سطح\s*شیب.?دار|ساختار\s*مولکولی|بررسی\s*صفحه)/i.test(latestUserMessage);
+  const textbookPdfAttachment = selectedProvider === "gemini" && textbookContext && needsTextbookVisual
     ? await getTextbookPdfAttachment(latestUserMessage, recentConversationContext)
     : undefined;
   const conversationDocuments = (conversation.documents ?? []).map((document) => ({
@@ -678,21 +680,32 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ].join("\n") : undefined,
   };
 
+  // Exam generation is a focused one-shot task: avoid sending the full chat history,
+  // planner tools, and the large student profile to model providers.
+  const providerMessages: GeminiMessage[] = examGenerationMode
+    ? [aiMessages[aiMessages.length - 1]]
+    : aiMessages;
+  const examStudentContext = examGenerationMode ? {
+    persona: "balanced" as const,
+    availableFilesContext: availableFilesContext?.slice(0, 9000),
+    articleWriterContext: aiStudentContext.articleWriterContext,
+  } : aiStudentContext;
+
   const aiResult = examSourceMissing
     ? { text: JSON.stringify({ clarification: "برای اینکه آزمون دقیقاً از همان کتاب و مبحث باشد، لطفاً فایل PDF کتاب/جزوه را در همین گفتگو پیوست کن یا عنوان دقیق کتاب و پایه را بگو." }), planProposal: undefined, planDeletionProposal: undefined }
     : exactTodayRead
       ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
       : examGenerationMode
         ? conversationDocuments.length || textbookPdfAttachment
-          ? await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
+          ? await generateGeminiReply(providerMessages, examStudentContext, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
           : selectedProvider === "groq"
-            ? await generateGroqReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
+            ? await generateGroqReply(providerMessages, examStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
             : selectedProvider === "openrouter"
-              ? await generateOpenRouterReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? OPENROUTER_MODEL_IDS[0]) as typeof OPENROUTER_MODEL_IDS[number])
+              ? await generateOpenRouterReply(providerMessages, examStudentContext, (parsed.data.modelId ?? OPENROUTER_MODEL_IDS[0]) as typeof OPENROUTER_MODEL_IDS[number])
               : selectedProvider === "cloudflare"
-                ? await generateCloudflareReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
+                ? await generateCloudflareReply(providerMessages, examStudentContext, (parsed.data.modelId ?? CLOUDFLARE_MODEL_IDS[0]) as typeof CLOUDFLARE_MODEL_IDS[number])
                 : selectedProvider === "huggingface"
-                  ? await generateHuggingFaceReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
+                  ? await generateHuggingFaceReply(providerMessages, examStudentContext, (parsed.data.modelId ?? HUGGINGFACE_MODEL_IDS[0]) as typeof HUGGINGFACE_MODEL_IDS[number])
                   : await generateGeminiReply(aiMessages, { ...aiStudentContext, persona: "balanced" }, selectedGeminiModelId as typeof GEMINI_MODEL_IDS[number])
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
