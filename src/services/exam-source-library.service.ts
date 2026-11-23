@@ -12,6 +12,7 @@ const cache = new Map<string, { attachment: NonNullable<GeminiMessage["attachmen
 
 type TreeFile = { path: string; type: string; size?: number; sha?: string };
 type GithubTree = { tree: TreeFile[]; truncated?: boolean };
+type GithubContent = { type?: string; encoding?: string; content?: string; path?: string };
 
 async function github<T>(url: string): Promise<T> {
   if (!TOKEN) throw new Error("ROBO_KNOWLEDGE_GITHUB_TOKEN is not configured");
@@ -24,12 +25,12 @@ async function github<T>(url: string): Promise<T> {
   return await response.json() as T;
 }
 
-function subjectDirectory(message: string): { key: string; label: string; prefix: string } | undefined {
+function subjectDirectory(message: string): { key: string; label: string; prefix: string; bankPrefix?: string } | undefined {
   const text = message.replace(/[يى]/g, "ی").replace(/ك/g, "ک").toLowerCase();
   if (/شیمی|chemistry/.test(text)) return { key: "chemistry", label: "شیمی", prefix: "textbooks/chemistry-3-grade-12-experimental-math-1405/" };
   if (/زبان|انگلیسی|english/.test(text)) return { key: "english", label: "زبان انگلیسی", prefix: "textbooks/english/" };
   if (/هندسه|geometry/.test(text)) return { key: "geometry", label: "هندسه", prefix: "textbooks/geometry/" };
-  if (/فیزیک|physics/.test(text)) return { key: "physics", label: "فیزیک", prefix: "textbooks/physics-3-grade-12-math/" };
+  if (/فیزیک|physics/.test(text)) return { key: "physics", label: "فیزیک", prefix: "textbooks/physics-3-grade-12-math/", bankPrefix: "question-banks/physics/grade-12/" };
   return undefined;
 }
 
@@ -67,15 +68,17 @@ export async function getExamSourceLibrary(message: string): Promise<{
   bookAttachments: NonNullable<GeminiMessage["attachments"]>;
   bankAttachments: NonNullable<GeminiMessage["attachments"]>;
   sourceDescription: string;
+  mapContext: string;
 }> {
   const subject = subjectDirectory(message);
-  if (!subject) return { subject: "", bookAttachments: [], bankAttachments: [], sourceDescription: "نام درس از درخواست قابل تشخیص نیست." };
+  if (!subject) return { subject: "", bookAttachments: [], bankAttachments: [], sourceDescription: "نام درس از درخواست قابل تشخیص نیست.", mapContext: "" };
   const tree = await github<GithubTree>(API + "/repos/" + OWNER + "/" + REPO + "/git/trees/" + encodeURIComponent(BRANCH) + "?recursive=1");
   if (tree.truncated) throw new Error("Robo-Knowledge repository tree is truncated");
-  const pdfs = tree.tree.filter((item) => item.type === "blob" && item.path.startsWith(subject.prefix) &&
+  const pdfs = tree.tree.filter((item) => item.type === "blob" &&
+    (item.path.startsWith(subject.prefix) || Boolean(subject.bankPrefix && item.path.startsWith(subject.bankPrefix))) &&
     item.path.toLowerCase().endsWith(".pdf") && (item.size ?? 0) <= 15_000_000);
-  const books = pdfs.filter((item) => !isQuestionBankPath(item.path));
-  const banks = pdfs.filter((item) => isQuestionBankPath(item.path));
+  const books = pdfs.filter((item) => item.path.startsWith(subject.prefix) && !isQuestionBankPath(item.path));
+  const banks = pdfs.filter((item) => isQuestionBankPath(item.path) || Boolean(subject.bankPrefix && item.path.startsWith(subject.bankPrefix)));
   if (!books.length) throw new Error("Textbook PDF not found for subject " + subject.key);
   if (!banks.length) throw new Error("Question-bank PDF not found for subject " + subject.key);
   const selectedBooks = books.slice(0, 2);
@@ -84,7 +87,17 @@ export async function getExamSourceLibrary(message: string): Promise<{
   if (totalBytes > 35_000_000) throw new Error("Selected textbook and question-bank PDFs exceed the 35 MB combined processing limit");
   const bookAttachments = await Promise.all(selectedBooks.map(getAttachment));
   const bankAttachments = await Promise.all(selectedBanks.map(getAttachment));
-  const describe = (files: TreeFile[]) => files.map((file) => file.path).join("\n");
+  const mapFiles = tree.tree.filter((item) => item.type === "blob" && item.path.startsWith(subject.prefix) &&
+    /(?:book\\.json|map|نقشه|outline|فهرست)/i.test(item.path.split("/").pop() || "") &&
+    /\\.(?:json|md)$/i.test(item.path) && (item.size ?? 0) <= 100_000).slice(0, 3);
+  const mapParts = await Promise.all(mapFiles.map(async (item) => {
+    const file = await github<GithubContent>(API + "/repos/" + OWNER + "/" + REPO + "/contents/" +
+      item.path.split("/").map(encodeURIComponent).join("/") + "?ref=" + encodeURIComponent(BRANCH));
+    if (file.type !== "file" || file.encoding !== "base64" || !file.content) return "";
+    return "[نقشه/فراداده کتاب: " + item.path + "]\\n" + Buffer.from(file.content.replace(/\\s/g, ""), "base64").toString("utf8").slice(0, 12_000);
+  }));
+  const mapContext = mapParts.filter(Boolean).join("\\n\\n");
+  const describe = (files: TreeFile[]) => files.map((file) => file.path).join("\\n");
   return {
     subject: subject.label,
     bookAttachments,
