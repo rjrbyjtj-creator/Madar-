@@ -161,16 +161,21 @@ function splitDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
   };
 
   for (const line of lines) {
-    const match = line.match(/^#{1,4}\s+(.+)$/);
+    const match = line.match(/^(#{1,4})\\s+(.+)$/);
     if (match) {
       flush();
-      heading = match[1].trim();
-      const pageMatch = heading.match(/صفحه\s*چاپی\s*(\d+)\s*\|\s*صفحه\s*PDF\s*(\d+)/i);
+      const headingLevel = match[1].length;
+      heading = match[2].trim();
+      const pageMatch = heading.match(/صفحه\\s*چاپی\\s*(\\d+)\\s*\\|\\s*صفحه\\s*PDF\\s*(\\d+)/i);
       if (pageMatch) {
         printedPage = Number(pageMatch[1]);
         pdfPage = Number(pageMatch[2]);
+      } else if (headingLevel === 2) {
+        // Front matter, glossary, and back matter must not inherit the last printed page.
+        printedPage = undefined;
+        pdfPage = undefined;
       }
-      if (/فصل\s*(اول|دوم|سوم|چهارم|\d+)/.test(heading)) chapter = heading;
+      if (/فصل\\s*(اول|دوم|سوم|چهارم|\\d+)/.test(heading)) chapter = heading;
     } else {
       buffer.push(line);
     }
