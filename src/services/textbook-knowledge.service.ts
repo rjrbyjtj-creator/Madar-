@@ -95,6 +95,17 @@ function expandQueryTokens(tokens: string[]): Array<{ token: string; weight: num
   return [...weighted].map(([token, weight]) => ({ token, weight }));
 }
 
+function extractRequestedChapter(question: string): string | undefined {
+  const value = normalize(question);
+  const match = value.match(/(?:فصل|بخش)\s*(اول|دوم|سوم|چهارم|پنجم|ششم|هفتم|هشتم|نهم|دهم|\d{1,2})/);
+  if (!match) return undefined;
+  const aliases: Record<string, string> = {
+    "1": "اول", "2": "دوم", "3": "سوم", "4": "چهارم", "5": "پنجم",
+    "6": "ششم", "7": "هفتم", "8": "هشتم", "9": "نهم", "10": "دهم",
+  };
+  return "فصل " + (aliases[match[1]] ?? match[1]);
+}
+
 function extractPrintedPage(question: string): number | undefined {
   const match = normalize(question).match(/(?:صفحه\s*(?:چاپی\s*)?|صفحه\s*شماره\s*)(\d{1,3})/);
   if (!match) return undefined;
@@ -195,8 +206,22 @@ function splitDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
 }
 
 async function splitPdfDocument(path: string, buffer: Buffer, category: "textbook" | "question-bank"): Promise<KnowledgeChunk[]> {
-  const parsed = await pdfParse(buffer);
-  const pages = String(parsed.text || "").split("\f");
+  const parsed = await pdfParse(buffer, {
+    pagerender: async (pageData: any) => {
+      const content = await pageData.getTextContent();
+      let lastY: number | undefined;
+      let pageText = "";
+      for (const item of content.items ?? []) {
+        if (!("str" in item)) continue;
+        const y = Number(item.transform?.[5]);
+        if (lastY !== undefined && Number.isFinite(y) && Math.abs(y - lastY) > 4) pageText += "\n";
+        pageText += String(item.str ?? "") + " ";
+        if (Number.isFinite(y)) lastY = y;
+      }
+      return pageText + "\n[[PDF_PAGE_BREAK]]\n";
+    },
+  });
+  const pages = String(parsed.text || "").split("[[PDF_PAGE_BREAK]]");
   const title = titleFromPath(path);
   const result: KnowledgeChunk[] = [];
   let chapter: string | undefined;
@@ -401,6 +426,7 @@ export async function retrieveTextbookContext(question: string, conversationCont
     const normalizedQuestion = normalize(question);
     const combinedContext = normalize(question + " " + conversationContext);
     const requestedPage = extractPrintedPage(question);
+    const requestedChapter = extractRequestedChapter(combinedContext);
     const subject = detectBookSubject(combinedContext);
     const subjectChunks = subject
       ? chunks.filter((chunk) => chunk.category === "knowledge" || chunkMatchesSubject(chunk, subject))
@@ -444,8 +470,20 @@ export async function retrieveTextbookContext(question: string, conversationCont
       ].join("\n\n");
     }
 
+    const chapterScopedChunks = requestedChapter
+      ? subjectChunks.filter((chunk) => chunk.chapter && normalize(chunk.chapter).includes(normalize(requestedChapter)))
+      : subjectChunks;
+    if (requestedChapter && !chapterScopedChunks.length) {
+      return [
+        "=== فصل در منبع قابل تأیید نیست ===",
+        "در فایل‌های متصل، قطعه‌ای با برچسب قابل‌تشخیص برای " + requestedChapter + " پیدا نشد.",
+        "برای جلوگیری از طرح سؤال خارج از محدوده، از محتوای فصل‌های دیگر یا قطعه‌های بدون برچسب فصل استفاده نکن.",
+        "از دانش‌آموز بخواه عنوان دقیق فصل یا نسخه کتاب را مشخص کند؛ ادعا نکن که فصل را بررسی کرده‌ای.",
+      ].join("\n");
+    }
+
     const queryTokens = tokenize(question);
-    const ranked = subjectChunks.map((chunk) => ({
+    const ranked = chapterScopedChunks.map((chunk) => ({
       chunk,
       score: scoreChunk(chunk, queryTokens, normalizedQuestion) +
         (chunk.chapter && combinedContext.includes(normalize(chunk.chapter)) ? 5 : 0),
