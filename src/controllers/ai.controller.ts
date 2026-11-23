@@ -561,7 +561,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const studyFilesContext = isStudyFilesRequest(latestUserMessage)
     ? await buildStudyFilesContext()
     : undefined;
-  const textbookContext = await retrieveTextbookContext(latestUserMessage);
+  const textbookContext = await retrieveTextbookContext(latestUserMessage, history.slice(-6).map((item) => item.content).join("\n"));
   const availableFilesContext = [studyFilesContext, textbookContext].filter(Boolean).join("\n\n") || undefined;
   const plannerContext = plannerRelevant
     ? [
