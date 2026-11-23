@@ -56,6 +56,37 @@ function tokenize(value: string): string[] {
     .filter((word) => word.length > 1 && !STOP_WORDS.has(word)))];
 }
 
+const QUERY_EXPANSIONS: Record<string, string[]> = {
+  "دینامیک": ["نیرو", "قانون نیوتون", "اصطکاک", "شتاب", "تکانه", "حرکت دایره ای"],
+  "نیوتون": ["دینامیک", "نیرو", "اصطکاک", "شتاب"],
+  "سینماتیک": ["حرکت بر خط راست", "سرعت", "شتاب", "جابه جایی", "نمودار مکان زمان"],
+  "حرکت": ["سرعت", "شتاب", "جابه جایی", "مکان", "نمودار مکان زمان"],
+  "نوسان": ["حرکت هماهنگ ساده", "دوره", "بسامد", "دامنه", "انرژی نوسانگر"],
+  "موج": ["طول موج", "بسامد", "تداخل", "پراش", "بازتاب", "شکست"],
+  "اتمی": ["فوتون", "اثر فوتوالکتریک", "طیف خطی", "مدل بور"],
+  "هسته": ["پرتوزایی", "نیمه عمر", "شکافت", "گداخت"],
+  "مول": ["جرم مولی", "عدد آووگادرو", "استوکیومتری", "مقدار ماده"],
+  "استوکیومتری": ["مول", "جرم مولی", "واکنش شیمیایی", "معادله موازنه"],
+  "محلول": ["غلظت", "مولاریته", "حلال", "حل شونده"],
+  "اسید": ["باز", "ph", "pH", "یون هیدرونیوم"],
+  "باز": ["اسید", "ph", "pH", "یون هیدروکسید"],
+  "اکسایش": ["کاهش", "عدد اکسایش", "الکترون", "ردوکس"],
+  "کاهش": ["اکسایش", "عدد اکسایش", "الکترون", "ردوکس"],
+};
+
+function expandQueryTokens(tokens: string[]): Array<{ token: string; weight: number }> {
+  const weighted = new Map<string, number>();
+  for (const token of tokens) weighted.set(token, 1);
+  for (const token of tokens) {
+    for (const expanded of QUERY_EXPANSIONS[token] ?? []) {
+      for (const alias of tokenize(expanded)) {
+        if (!weighted.has(alias)) weighted.set(alias, 0.45);
+      }
+    }
+  }
+  return [...weighted].map(([token, weight]) => ({ token, weight }));
+}
+
 function isRelevantRequest(question: string): boolean {
   return /(کتاب|کتاب.?های|منبع|منابع|جزوه|درس|فصل|صفحه|مبحث|سرفصل|تست|تستی|چهارگزینه|تشریحی|آزمون|امتحان|سوال|سؤال|پاسخ|حل کن|توضیح بده|یاد بگیر|یادگیری|فیزیک|شیمی|زیست|ریاضی|عربی|ادبیات|انگلیسی)/i.test(question);
 }
@@ -187,10 +218,10 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
 function scoreChunk(chunk: KnowledgeChunk, queryTokens: string[], normalizedQuestion: string): number {
   let matched = 0;
   let score = 0;
-  for (const token of queryTokens) {
+  for (const { token, weight } of expandQueryTokens(queryTokens)) {
     if (chunk.tokens.has(token)) {
-      matched += 1;
-      score += token.length >= 6 ? 3 : 1;
+      if (weight === 1) matched += 1;
+      score += Math.round((token.length >= 6 ? 3 : 1) * weight * 10) / 10;
     }
   }
   const heading = normalize(chunk.heading);
