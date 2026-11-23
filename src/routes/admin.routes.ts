@@ -3,7 +3,7 @@ import { User } from "../models/User.js";
 import { requireAdmin, requireAuth } from "../middlewares/auth.js";
 import { z } from "zod";
 import { AppError } from "../utils/errors.js";
-import { addQuestionItem, deactivateQuestionItem, deactivateQuestionBankFile, listQuestionItems, listQuestionBankFiles, questionBankFacets, saveQuestionBankFile } from "../services/question-bank-store.service.js";
+import { addQuestionItem, deactivateQuestionItem, deactivateQuestionBankFile, listQuestionItems, listQuestionBankFiles, questionBankFacets, saveQuestionBankFile, extractQuestionsFromPdf, updateQuestionBankFileQuestionCount } from "../services/question-bank-store.service.js";
 
 export const adminRouter = Router();
 
@@ -73,18 +73,34 @@ adminRouter.post("/question-bank/files", requireAuth, requireAdmin,
     const buffer = req.body as Buffer;
     if (mimeType === "application/pdf" && buffer.subarray(0, 5).toString("ascii") !== "%PDF-") throw new AppError(400, "INVALID_PDF", "ساختار فایل PDF معتبر نیست.");
     let questionCount = 0;
+    const file = await saveQuestionBankFile({ fileName, mimeType, subject, grade, chapter, buffer, questionCount });
+    let processingWarning = "";
     if (mimeType === "text/plain") {
       const text = buffer.toString("utf8").replace(/^\uFEFF/, "").replace(/\r/g, "");
       const blocks = text.split(/\n\s*\n+/).map(part => part.trim()).filter(part => part.length >= 10);
-      for (const question of blocks) {
+      for (const question of blocks.slice(0, 300)) {
         await addQuestionItem({ question, subject, grade, chapter, questionType: "ترکیبی", difficulty: "متوسط", source: fileName });
         questionCount += 1;
       }
+    } else {
+      try {
+        const extracted = await extractQuestionsFromPdf({ buffer, fileName, subject, grade, chapter });
+        for (const item of extracted) {
+          await addQuestionItem({ question: item.question, subject, grade, chapter: item.chapter, questionType: item.questionType, difficulty: item.difficulty, source: fileName });
+          questionCount += 1;
+        }
+        if (!questionCount) processingWarning = "PDF ذخیره شد، اما سؤال قابل‌استخراج معتبری پیدا نشد؛ ممکن است کیفیت اسکن پایین یا محتوای فایل غیرسؤالی باشد.";
+      } catch (error) {
+        processingWarning = error instanceof Error ? error.message : "استخراج سؤال از PDF ناموفق بود.";
+        console.error("[QUESTION_BANK] PDF extraction failed:", processingWarning);
+      }
     }
-    const file = await saveQuestionBankFile({ fileName, mimeType, subject, grade, chapter, buffer, questionCount });
-    res.status(201).json({ ok: true, file, message: mimeType === "text/plain"
-      ? questionCount + " سؤال استخراج و در بانک ثبت شد."
-      : "فایل PDF در پایگاه داده ذخیره شد؛ استخراج متن و تبدیل آن به سؤال در مرحله پردازش PDF انجام می‌شود." });
+    await updateQuestionBankFileQuestionCount(file.id, questionCount);
+    res.status(201).json({ ok: true, file: { ...file, questionCount }, extractedCount: questionCount,
+      warning: processingWarning || undefined,
+      message: mimeType === "application/pdf"
+        ? questionCount + " سؤال از PDF استخراج و به بانک سؤال اضافه شد."
+        : questionCount + " سؤال از فایل متنی استخراج و به بانک سؤال اضافه شد." });
   }
 );
 
