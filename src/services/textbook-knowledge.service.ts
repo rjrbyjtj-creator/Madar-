@@ -403,7 +403,7 @@ export async function retrieveTextbookContext(question: string, conversationCont
     const requestedPage = extractPrintedPage(question);
     const subject = detectBookSubject(combinedContext);
     const subjectChunks = subject
-      ? chunks.filter((chunk) => chunk.category !== "textbook" || chunkMatchesSubject(chunk, subject))
+      ? chunks.filter((chunk) => chunk.category === "knowledge" || chunkMatchesSubject(chunk, subject))
       : chunks;
 
     if (requestedPage && !subject) {
