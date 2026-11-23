@@ -91,7 +91,7 @@ const generatedExamSchema = z.object({
   questions: z.array(z.object({
     number: examInteger(1, 20),
     text: z.string().trim().min(1).max(2000),
-    score: examPositiveNumber(20),
+    score: examPositiveNumber(100),
     section: z.string().trim().max(80).optional(),
     answerLines: examInteger(1, 8).optional(),
     figureSvg: z.string().max(16000).optional(),
@@ -735,11 +735,21 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
           throw new Error("ساختار داده‌های آزمون با قالب مورد انتظار هماهنگ نبود.");
         }
         const sum = validated.data.questions.reduce((total, question) => total + question.score, 0);
+        if (sum <= 0) throw new Error("مجموع بارم سؤال‌ها باید بیشتر از صفر باشد.");
+        let questions = validated.data.questions;
         if (Math.abs(sum - validated.data.totalScore) > 0.001) {
-          console.error("[EXAM] score mismatch:", { sum, totalScore: validated.data.totalScore });
-          throw new Error("جمع بارم سؤال‌ها با بارم کل برابر نیست.");
+          console.warn("[EXAM] normalizing question scores:", { sum, totalScore: validated.data.totalScore });
+          const normalized = questions.map((question) => ({
+            ...question,
+            score: Math.round((question.score / sum) * validated.data.totalScore * 100) / 100,
+          }));
+          const roundedSum = normalized.reduce((total, question) => total + question.score, 0);
+          const lastQuestion = normalized[normalized.length - 1];
+          lastQuestion.score = Math.round((lastQuestion.score + validated.data.totalScore - roundedSum) * 100) / 100;
+          questions = normalized;
         }
-        const html = await renderExamPaperHtml({ ...validated.data, studentName: "" });
+        const examData = { ...validated.data, questions, studentName: "" };
+        const html = await renderExamPaperHtml(examData);
         const slug = validated.data.subject.replace(/[^\p{L}\p{N}-]+/gu, "-").slice(0, 36) || "exam";
         examPaper = { filename: "madar-" + slug + "-exam.html", html };
         reply = "آزمون **" + validated.data.subject + "** با " + validated.data.questions.length +
