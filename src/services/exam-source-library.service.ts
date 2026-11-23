@@ -34,7 +34,8 @@ function subjectDirectory(message: string): { key: string; label: string; prefix
 }
 
 function isQuestionBankPath(path: string): boolean {
-  const fileName = path.split("/").pop() || path;\n  return /بانک|سوال|سؤال|question.?bank|sample.?exam|نمونه.?آزمون/i.test(fileName);
+  const fileName = path.split("/").pop() || path;
+  return /بانک|سوال|سؤال|question.?bank|sample.?exam|نمونه.?آزمون/i.test(fileName);
 }
 
 async function getAttachment(file: TreeFile): Promise<NonNullable<GeminiMessage["attachments"]>[number]> {
