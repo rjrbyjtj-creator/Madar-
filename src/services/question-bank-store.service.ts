@@ -150,7 +150,13 @@ export async function getQuestionBankFileForProcessing(id: string) {
   if (!fileRows.length) return null;
   const chunks = rows(await execute("SELECT data FROM question_bank_file_chunks WHERE file_id=? ORDER BY chunk_index", [id]));
   if (!chunks.length) throw new Error("محتوای فایل در پایگاه داده پیدا نشد.");
-  return { ...fileRows[0], buffer: Buffer.concat(chunks.map(row => Buffer.isBuffer(row.data) ? row.data : Buffer.alloc(0))) };
+  const file = fileRows[0];
+  return {
+    id: String(file.id), file_name: String(file.file_name), mime_type: String(file.mime_type),
+    subject: String(file.subject), grade: String(file.grade), chapter: String(file.chapter || ""),
+    question_count: Number(file.question_count || 0),
+    buffer: Buffer.concat(chunks.map(row => Buffer.isBuffer(row.data) ? row.data : Buffer.alloc(0))),
+  };
 }
 export async function questionItemExists(question: string, source: string) {
   const found = rows(await execute("SELECT id FROM question_bank_items WHERE is_active=1 AND source=? AND question=? LIMIT 1", [source, question]));
