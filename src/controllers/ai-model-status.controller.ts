@@ -5,6 +5,7 @@ import { GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
 import { HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
+import { COARENA_MODEL_IDS, fetchCoarenaModels } from "../services/coarena.service.js";
 
 type Quota = { label: string; limit?: number | null; remaining?: number | null; used?: number | null; reset?: string | null };
 type ProviderStatus = { id: string; name: string; configured: boolean; status: "online" | "offline" | "unconfigured" | "unknown"; message: string; checkedAt: string; quota: Quota[]; models: Array<{ id: string; status: string }> };
@@ -73,7 +74,15 @@ export async function getAIModelStatus(_req: Request, res: Response): Promise<vo
     }}),
     inspectProvider({ id: "cloudflare", name: "Cloudflare Workers AI", configured: Boolean(env.CLOUDFLARE_API_TOKEN && env.CLOUDFLARE_ACCOUNT_ID), models: CLOUDFLARE_MODEL_IDS, check: async () => probe("https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(env.CLOUDFLARE_ACCOUNT_ID) + "/ai/models/search?per_page=1", { Authorization: "Bearer " + env.CLOUDFLARE_API_TOKEN }) }),
     inspectProvider({ id: "huggingface", name: "Hugging Face", configured: Boolean(env.HF_TOKEN), models: HUGGINGFACE_MODEL_IDS, check: async () => probe("https://huggingface.co/api/whoami-v2", { Authorization: "Bearer " + env.HF_TOKEN }) }),
+    inspectProvider({ id: "coarena", name: "Coarena", configured: Boolean(env.COARENA_API_KEY), models: COARENA_MODEL_IDS, check: async () => probe("https://coarena.ai/api/v1/models", { Authorization: "Bearer " + env.COARENA_API_KEY }) }),
   ]);
   res.setHeader("Cache-Control", "no-store");
   res.json({ success: true, checkedAt: new Date().toISOString(), providers: checks, note: "سهمیه فقط وقتی نمایش داده می‌شود که خود ارائه‌دهنده آن را از API اعلام کند. وضعیت اتصال به معنی تضمین ظرفیت یا سهمیه مدل در زمان تولید پاسخ نیست." });
+}
+
+
+export async function getCoarenaModels(_req: Request, res: Response): Promise<void> {
+  const models = await fetchCoarenaModels();
+  res.setHeader("Cache-Control", "private, max-age=300");
+  res.json({ success: true, provider: "coarena", models });
 }
