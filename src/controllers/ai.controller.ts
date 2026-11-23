@@ -7,7 +7,6 @@ import { Plan } from "../models/Plan.js";
 import { StudyFile } from "../models/StudyFile.js";
 import { StudentAcademicHistory } from "../models/StudentAcademicHistory.js";
 import { Exam } from "../models/Exam.js";
-import { QuestionBankItem } from "../models/QuestionBankItem.js";
 import { AppError } from "../utils/errors.js";
 import { env } from "../config/env.js";
 import { generateGeminiReply, uploadGeminiFile, GEMINI_MODEL_IDS, type GeminiMessage } from "../services/gemini.service.js";
@@ -17,6 +16,7 @@ import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloud
 import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
 import { getTextbookPdfAttachment, retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
 import { renderExamPaperHtml } from "../services/exam-paper-template.service.js";
+import { retrieveQuestionBankContext } from "../services/question-bank-store.service.js";
 
 const messageSchema = z.object({
   role: z.enum(["user", "model"]),
@@ -599,29 +599,17 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
   const examBankContext = examGenerationMode ? await (async () => {
     const normalized = normalizeExamIntentText(latestUserMessage);
-    const stopWords = new Set(["برای", "برام", "یه", "یک", "از", "در", "را", "با", "این", "اون", "همه", "کتاب", "فصل", "مبحث", "آزمون", "امتحان", "بساز", "طراحی", "کن", "نمره", "سوال", "سؤال"]);
-    const terms = [...new Set(normalized.split(/[^\p{L}\p{N}]+/u).filter((term) => term.length >= 3 && !stopWords.has(term)))].slice(0, 8);
-    const filter: Record<string, unknown> = { isActive: true };
-    if (terms.length) {
-      filter.$or = terms.flatMap((term) => {
-        const escaped = term.replace(/[|\\{}()[\]^$+*?.-]/g, "\\$&");
-        return [
-          { question: { $regex: escaped, $options: "i" } },
-          { chapter: { $regex: escaped, $options: "i" } },
-          { subject: { $regex: escaped, $options: "i" } },
-        ];
-      });
-    }
-    const items = await QuestionBankItem.find(filter)
-      .sort({ createdAt: -1 }).limit(6)
-      .select("question subject grade chapter questionType difficulty source").lean();
-    if (!items.length) return "";
-    return "نمونه‌های مرتبط از بانک سؤال اختصاصی مدار (صرفاً برای الهام از تیپ، ساختار، عمق مفهومی و سطح دشواری؛ عیناً کپی نکن و داده‌ها/اعداد/شرایط را تازه طراحی کن):\n" +
-      items.map((item, index) => [
-        (index + 1) + ". درس: " + item.subject + "؛ پایه: " + (item.grade || "نامشخص") +
-        "؛ فصل: " + (item.chapter || "نامشخص") + "؛ تیپ: " + item.questionType + "؛ دشواری: " + item.difficulty,
-        item.question,
-      ].join("\n")).join("\n\n").slice(0, 6500);
+    const grade = /(?:پایه\s*)?(?:دهم|10|۱۰)\b/.test(normalized) ? "10"
+      : /(?:پایه\s*)?(?:یازدهم|11|۱۱)\b/.test(normalized) ? "11"
+      : /(?:پایه\s*)?(?:دوازدهم|12|۱۲)\b/.test(normalized) ? "12" : undefined;
+    const subjectAliases: Array<[string, string[]]> = [
+      ["فیزیک", ["فیزیک", "physics"]], ["شیمی", ["شیمی", "chemistry"]],
+      ["زیست‌شناسی", ["زیست", "زیست‌شناسی", "biology"]], ["ریاضی", ["ریاضی", "ریاضیات", "math"]],
+      ["ادبیات", ["ادبیات", "فارسی"]], ["عربی", ["عربی"]], ["زبان انگلیسی", ["انگلیسی", "زبان"]],
+      ["دین و زندگی", ["دینی", "دین و زندگی"]],
+    ];
+    const subject = subjectAliases.find(([, aliases]) => aliases.some(alias => normalized.includes(alias)))?.[0];
+    return retrieveQuestionBankContext({ message: latestUserMessage, subject, grade, limit: 6 });
   })() : "";
 
   const studyFilesContext = isStudyFilesRequest(latestUserMessage)
