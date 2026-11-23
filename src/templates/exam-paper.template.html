@@ -77,12 +77,24 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .lh,.q{grid-template-columns:36px 1fr 50px}
 }
 @media print{
-@page{size:A4;margin:8mm}
-:root{padding:0}body{background:#fff}
+@page{size:A4 portrait;margin:10mm 9mm 12mm}
+:root{padding:0}html,body{width:100%;min-height:0;background:#fff}
+body{font-size:11.5pt;line-height:1.75}
 .bar,body::before,.del{display:none!important}
-.sheet{width:100%;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;min-height:0}
+.sheet{display:block;width:auto;max-width:none;min-height:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;overflow:visible;background:#fff}
+.sheet::before{position:fixed;opacity:.025}
+.sheet>*{position:relative}
+.top,.info,.lh,.sec{break-inside:avoid;page-break-inside:avoid}
+.top{margin-bottom:4mm}
+.info{margin-bottom:3mm}
+.lh{margin:0}
+#L{overflow:visible;border-radius:0 0 8px 8px}
+.q{break-inside:avoid;page-break-inside:avoid;break-after:auto;page-break-after:auto}
+.q>div:nth-child(2){padding:3mm 3mm}
+.n,.b{padding:3mm 0}
+.ans{break-inside:avoid}
+.foot{break-inside:avoid;margin-top:4mm}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.q,.sec{break-inside:avoid}
 }
 .math-display{direction:ltr;text-align:center;margin:6px 0;overflow-x:auto}.math-inline{direction:ltr;unicode-bidi:isolate}
 </style>
