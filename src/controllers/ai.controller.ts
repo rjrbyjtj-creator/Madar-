@@ -14,7 +14,7 @@ import { generateGroqReply, GROQ_MODEL_IDS } from "../services/groq.service.js";
 import { generateOpenRouterReply, OPENROUTER_MODEL_IDS } from "../services/openrouter.service.js";
 import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloudflare.service.js";
 import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
-import { retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
+import { getTextbookPdfAttachment, retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
 import { renderExamPaperHtml } from "../services/exam-paper-template.service.js";
 
 const messageSchema = z.object({
@@ -582,6 +582,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const exactTodayRead = user.role === "student" &&
     isExactTodayPlanReadRequest(latestUserMessage);
   const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : "gemini";
+  const recentConversationContext = history.slice(-6).map((item) => item.content).join("\n");
+  const textbookPdfAttachment = selectedProvider === "gemini" && textbookContext
+    ? await getTextbookPdfAttachment(latestUserMessage, recentConversationContext)
+    : undefined;
   const conversationDocuments = (conversation.documents ?? []).map((document) => ({
     fileUri: String(document.uri),
     mimeType: String(document.mimeType || "application/pdf"),
@@ -602,8 +606,17 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     ...history,
     {
       role: "user",
-      content: parsed.data.screenFrame ? latestUserMessage + "\n\n[تصویر صفحه‌ای که کاربر همین حالا به اشتراک گذاشته پیوست شده است؛ محتوای قابل مشاهده را بررسی کن.]" : latestUserMessage,
-      ...(conversationDocuments.length ? { attachments: conversationDocuments.map(({ fileUri, mimeType, fileName }) => ({ fileUri, mimeType, fileName })) } : {}),
+      content: [
+        latestUserMessage,
+        parsed.data.screenFrame ? "[تصویر صفحه‌ای که کاربر همین حالا به اشتراک گذاشته پیوست شده است؛ محتوای قابل مشاهده را بررسی کن.]" : "",
+        textbookPdfAttachment ? "[PDF اصلی کتاب درسی نیز پیوست شده است. برای شکل‌ها، نمودارها، جدول‌ها و ساختارهای مولکولی، فقط صفحه و محدوده مرتبط با درخواست دانش‌آموز را در خود PDF بررسی کن و شماره صفحه چاپی را با شماره PDF اشتباه نگیر.]" : "",
+      ].filter(Boolean).join("\n\n"),
+      ...(conversationDocuments.length || textbookPdfAttachment ? {
+        attachments: [
+          ...conversationDocuments.map(({ fileUri, mimeType, fileName }) => ({ fileUri, mimeType, fileName })),
+          ...(textbookPdfAttachment ? [textbookPdfAttachment] : []),
+        ],
+      } : {}),
       ...(parsed.data.screenFrame ? { screenFrame: parsed.data.screenFrame } : {}),
     },
   ];
