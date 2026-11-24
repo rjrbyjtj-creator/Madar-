@@ -58,6 +58,7 @@ function errorText(error: unknown): string {
 async function requestGroqWithFallback(
   modelId: typeof GROQ_MODEL_IDS[number],
   payload: Record<string, unknown>,
+  deadlineAt?: number,
 ): Promise<Awaited<ReturnType<typeof fetch>>> {
   const fallbackModel = modelId === "openai/gpt-oss-120b"
     ? "openai/gpt-oss-20b"
@@ -66,6 +67,8 @@ async function requestGroqWithFallback(
   let lastError: unknown;
   for (let index = 0; index < candidates.length; index += 1) {
     try {
+      const timeoutMs = deadlineAt ? Math.min(600_000, deadlineAt - Date.now()) : 45_000;
+      if (timeoutMs <= 0) throw new AppError(504, "GROQ_TIMEOUT", "مهلت ساخت آزمون به پایان رسید.");
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -73,7 +76,7 @@ async function requestGroqWithFallback(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ ...payload, model: candidates[index] }),
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (response.ok || ![429, 500, 502, 503, 504].includes(response.status) || index === candidates.length - 1) {
         return response;
@@ -112,6 +115,7 @@ export async function generateGroqReply(
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
     studentProfileContext?: string;
+    requestDeadlineMs?: number;
   },
   modelId: typeof GROQ_MODEL_IDS[number] = env.GROQ_MODEL as typeof GROQ_MODEL_IDS[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
@@ -170,7 +174,7 @@ export async function generateGroqReply(
         max_completion_tokens: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 8192 : student.articleWriterContext ? 4096 : 2048,
         ...(student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? { response_format: { type: "json_object" } } : {}),
         ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
-      });
+      }, student.requestDeadlineMs);
 
       if (!response.ok) {
         const body = await response.text();
