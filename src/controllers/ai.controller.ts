@@ -67,8 +67,11 @@ function isExamGenerationRequest(message: string, previousUserMessages = ""): bo
   const numberedQuestionRequest = /(?:تعداد\s*)?(?:\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i.test(current) &&
     /(?:بساز|طراحی|تهیه|تولید|آماده|ارائه\s*کن|بده)/i.test(current) &&
     !/(?:جواب|پاسخ).{0,40}(?:بده|بدهی|بدی|بدید|بگو|بگویی)|حل\s*کن/i.test(current);
-  const explicitFollowup = /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو).{0,35}(?:آزمون|امتحان|برگه|سوال|سؤال).{0,25}(?:بساز|طراحی\s*کن|تهیه\s*کن|آماده\s*کن)/i.test(current) &&
-    /(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)/i.test(history);
+  const hasExamHistory = /(?:آزمون|امتحان|برگه\s*(?:امتحان|آزمون|تشریحی|تستی|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|سوالات?|سؤالات?)/i.test(history);
+  const explicitFollowup = hasExamHistory && (
+    /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو).{0,35}(?:آزمون|امتحان|برگه|سوال|سؤال).{0,25}(?:بساز|طراحی\s*کن|تهیه\s*کن|آماده\s*کن)/i.test(current) ||
+    /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو).{0,20}(?:بساز|طراحی\s*(?:کن|بکن)|تهیه\s*کن|آماده\s*کن|درست\s*کن)/i.test(current)
+  );
   if (questionSolvingIntent && !explicitCreationVerb) return false;
   return (hasQuestionArtifact && hasCreationIntent) || numberedQuestionRequest || explicitFollowup;
 }
