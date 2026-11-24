@@ -185,9 +185,6 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
     school: escapeHtml(data.school ?? ""),
     className: escapeHtml(data.className ?? ""),
     teacher: escapeHtml(data.teacher ?? ""),
-    subject: escapeHtml(data.subject),
-    grade: escapeHtml(data.grade),
-    field: escapeHtml(data.field ?? ""),
     examDate: escapeHtml(data.examDate ?? ""),
     questionBlocks: renderQuestionBlocks(data.questions, languageMode),
   };
