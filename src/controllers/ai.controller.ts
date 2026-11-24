@@ -314,7 +314,7 @@ async function generateExamInStages(
       console.warn("[EXAM_JOB] progress update failed:", error instanceof Error ? error.message : error);
     });
   };
-  const compactUserRequest = latest.content.split("\n\n[کتاب و بانک سؤال از کتابخانه خصوصی Robo-Knowledge")[0];
+  const compactUserRequest = latest.content.split(/\n\n\[(?:PDF کتاب و بانک سؤال|فایل‌های اصلی کتاب و بانک سؤال) از کتابخانه خصوصی Robo-Knowledge/)[0];
   const withStage = (instruction: string, includeSourceFiles = false): GeminiMessage[] => [
     {
       role: "user",
