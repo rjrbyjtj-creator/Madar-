@@ -303,19 +303,28 @@ async function generateExamStageWithRetry(
   minChars: number,
   stageLabel: string,
 ): Promise<{ text: string }> {
-  const first = await generateExamStageReply(messages, context, provider, modelId);
-  if (first.text.trim().length >= minChars) return first;
+  let first: { text: string } | undefined;
+  let firstError: unknown;
+  try {
+    first = await generateExamStageReply(messages, context, provider, modelId);
+  } catch (error) {
+    firstError = error;
+    if (!(error instanceof AppError) || ![502, 503, 504].includes(error.status)) throw error;
+  }
+  if (first && first.text.trim().length >= minChars) return first;
 
   const remainingMs = context.requestDeadlineMs ? context.requestDeadlineMs - Date.now() : 9 * 60_000;
   if (remainingMs < 45_000) {
+    if (firstError) throw firstError;
     throw new Error(stageLabel + " ناقص بود و زمان کافی برای بازتولید باقی نمانده است.");
   }
 
-  console.warn("[EXAM_PIPELINE] retrying incomplete stage once", {
+  console.warn("[EXAM_PIPELINE] retrying incomplete/transient stage once", {
     stage: stageLabel,
-    chars: first.text.trim().length,
+    chars: first?.text.trim().length ?? 0,
     provider,
     modelId,
+    transientError: firstError instanceof Error ? firstError.message : undefined,
   });
   const retryMessages = messages.map((message, index) =>
     index === messages.length - 1
