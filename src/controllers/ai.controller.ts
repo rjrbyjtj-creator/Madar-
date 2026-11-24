@@ -298,7 +298,10 @@ async function generateExamInStages(
   const requestDeadlineMs = context.requestDeadlineMs ?? Date.now() + 9 * 60_000;
   const updateProgress = async (progress: string) => {
     if (!context.jobId) return;
-    await AIJob.findByIdAndUpdate(context.jobId, { $set: { progress } }).catch((error: unknown) => {
+    await AIJob.findOneAndUpdate(
+      { _id: context.jobId, status: "processing" },
+      { $set: { progress, lockedAt: new Date() } },
+    ).catch((error: unknown) => {
       console.warn("[EXAM_JOB] progress update failed:", error instanceof Error ? error.message : error);
     });
   };
@@ -723,19 +726,6 @@ export async function getAIJob(req: Request, res: Response): Promise<void> {
     .lean();
   if (!job) throw new AppError(404, "AI_JOB_NOT_FOUND", "فرایند ساخت آزمون پیدا نشد.");
 
-  const updatedAt = job.updatedAt instanceof Date ? job.updatedAt.getTime() : new Date(job.updatedAt as unknown as string).getTime();
-  if (
-    (job.status === "queued" || job.status === "processing") &&
-    Number.isFinite(updatedAt) &&
-    Date.now() - updatedAt > 15 * 60_000
-  ) {
-    await AIJob.updateOne(
-      { _id: job._id, status: { $in: ["queued", "processing"] } },
-      { $set: { status: "failed", progress: "فرایند متوقف شد", error: "اجرای ساخت آزمون پس از راه‌اندازی مجدد سرور ادامه پیدا نکرد. لطفاً دوباره تلاش کن." } },
-    );
-    job = await AIJob.findById(id).select("_id status progress result error updatedAt").lean() ?? job;
-  }
-
   res.json({
     ok: true,
     jobId: String(job._id),
@@ -825,51 +815,20 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     const job = await AIJob.create({
       user: user._id,
       conversation: conversation._id,
-      status: "processing",
-      progress: "در حال آماده‌سازی کتاب و بانک سؤال",
+      status: "queued",
+      progress: "در صف ساخت آزمون",
+      payload: { ...parsed.data, conversationId: String(conversation._id) },
       expiresAt: new Date(Date.now() + 24 * 60 * 60_000),
     });
-
-    const workerRequest = {
-      body: { ...(req.body as Record<string, unknown>), conversationId: String(conversation._id) },
-    } as unknown as Request;
-    let workerStatus = 200;
-    let workerPayload: Record<string, any> | undefined;
-    const workerResponse = {
-      locals: { ...res.locals, skipExamQueue: true, examJobId: String(job._id) },
-      status(code: number) { workerStatus = code; return this; },
-      json(payload: Record<string, any>) { workerPayload = payload; return this; },
-    } as unknown as Response;
 
     res.status(202).json({
       ok: true,
       jobId: String(job._id),
-      status: "processing",
-      progress: "در حال آماده‌سازی کتاب و بانک سؤال",
+      status: "queued",
+      progress: "در صف ساخت آزمون",
       conversationId: String(conversation._id),
       title: conversation.title,
     });
-
-    // Detach only after the accepted job is persisted and the 202 response is sent.
-    void (async () => {
-      try {
-        await chatWithAI(workerRequest, workerResponse);
-        if (workerStatus < 200 || workerStatus >= 300 || !workerPayload?.ok) {
-          throw new Error(String(workerPayload?.message || "ساخت آزمون کامل نشد."));
-        }
-        await AIJob.findByIdAndUpdate(job._id, {
-          $set: { status: "completed", progress: "برگه آزمون آماده شد", result: workerPayload, error: "" },
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "ساخت آزمون ناموفق بود.";
-        console.error("[EXAM_JOB] background job failed:", { jobId: String(job._id), message });
-        await AIJob.findByIdAndUpdate(job._id, {
-          $set: { status: "failed", progress: "ساخت آزمون با خطا متوقف شد", error: message.slice(0, 1200) },
-        }).catch((updateError: unknown) => {
-          console.error("[EXAM_JOB] failed to persist job error:", updateError instanceof Error ? updateError.message : updateError);
-        });
-      }
-    })();
     return;
   }
 
