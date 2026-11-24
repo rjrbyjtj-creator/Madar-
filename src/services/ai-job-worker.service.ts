@@ -93,7 +93,7 @@ async function processNextExamJob(): Promise<void> {
       body: { ...payload, conversationId: String(job.conversation) },
     } as unknown as Request;
     const workerResponse = {
-      locals: { user, skipExamQueue: true, examJobId: jobId },
+      locals: { user, skipExamQueue: true, examJobId: jobId, examJobToken: workerToken },
       status(code: number) {
         responseStatus = code;
         return this;
