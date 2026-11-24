@@ -62,7 +62,8 @@ function isExamGenerationRequest(message: string, previousUserMessages = ""): bo
   // Words such as «بده»، «برام»، «ساختار» or an old assistant reply are not sufficient.
   const hasCreationIntent = /(?:طراحی\s*(?:کن|بکن|نمایش\s*بده|کنید)|طراحی\s+(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)|بساز(?:م|ید)?|تهیه\s*(?:کن|بکن)|تولید\s*(?:کن|بکن)|آماده\s*(?:کن|بکن)|درست\s*کن|ایجاد\s*کن|ساخت(?:ن)?\s+(?:آزمون|امتحان|برگه|سوال|سؤال)|امتحان\s*بگیر|آزمون\s*بگیر|نمونه\s*سوال\s*بده|نمونه\s*سؤال\s*بده)/i.test(current);
   const numberedQuestionRequest = /(?:تعداد\s*)?(?:\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i.test(current) &&
-    /(?:بساز|طراحی|تهیه|تولید|آماده|ارائه\s*کن|بده)/i.test(current);
+    /(?:بساز|طراحی|تهیه|تولید|آماده|ارائه\s*کن|بده)/i.test(current) &&
+    !/(?:جواب|پاسخ)\s*بده|حل\s*کن/i.test(current);
   const explicitFollowup = /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو).{0,35}(?:آزمون|امتحان|برگه|سوال|سؤال).{0,25}(?:بساز|طراحی\s*کن|تهیه\s*کن|آماده\s*کن)/i.test(current) &&
     /(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)/i.test(history);
   return (hasQuestionArtifact && hasCreationIntent) || numberedQuestionRequest || explicitFollowup;
