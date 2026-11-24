@@ -9,6 +9,7 @@ import { seedDefaultThemes } from "./services/theme.service.js";
 import { seedDefaultArticles } from "./services/articles.service.js";
 import { initializeMusicStore } from "./services/music-store.service.js";
 import { initializeQuestionBankStore } from "./services/question-bank-store.service.js";
+import { startAIJobWorker, stopAIJobWorker } from "./services/ai-job-worker.service.js";
 import { startTelegramBot, stopTelegramBot } from "./services/telegram.service.js";
 import { startTelegramFilesBot, stopTelegramFilesBot, migrateLegacyMusicAudioToTurso } from "./services/telegram-files.service.js";
 import { logger } from "./utils/logger.js";
@@ -25,6 +26,7 @@ async function shutdown(signal: string, server: Server): Promise<void> {
   forceExit.unref();
 
   server.close();
+  stopAIJobWorker();
   await Promise.race([Promise.all([stopTelegramBot(), stopTelegramFilesBot()]), new Promise((resolve) => setTimeout(resolve, 3_000))]);
   await mongoose.connection.close();
 
@@ -43,6 +45,7 @@ async function startServer(): Promise<void> {
     await seedDefaultArticles();
     startTelegramBot();
     startTelegramFilesBot();
+    startAIJobWorker();
 
     const server = createApp().listen(env.PORT, () => {
       logger.info(`Server running on http://localhost:${env.PORT}`);
