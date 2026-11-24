@@ -36,7 +36,7 @@ export async function fetchCoarenaModels(): Promise<string[]> {
   return COARENA_FREE_MODEL_IDS.filter((id) => available.size === 0 || available.has(id));
 }
 
-export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: string, systemContext = ""): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
+export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: string, systemContext = "", deadlineAt?: number): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   if (!env.COARENA_API_KEY) throw new AppError(503, "COARENA_NOT_CONFIGURED", "کلید Coarena روی سرور تنظیم نشده است.");
   if (!/^[a-zA-Z0-9._:-]{1,160}$/.test(modelId)) throw new AppError(400, "INVALID_COARENA_MODEL", "شناسه مدل Coarena معتبر نیست.");
   const normalized = [...messages];
@@ -44,6 +44,9 @@ export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: 
   if (!normalized.length) throw new AppError(400, "INVALID_CHAT_TURN", "پیام کاربر پیدا نشد.");
 
   try {
+    const examMode = systemContext.includes("حالت طراحی آزمون تشریحی فعال است");
+    const timeoutMs = deadlineAt ? Math.min(600_000, deadlineAt - Date.now()) : 60_000;
+    if (timeoutMs <= 0) throw new AppError(504, "COARENA_TIMEOUT", "مهلت ساخت آزمون به پایان رسید.");
     const response = await fetch(BASE_URL + "/chat/completions", {
       method: "POST",
       headers: { Authorization: "Bearer " + env.COARENA_API_KEY, "Content-Type": "application/json" },
@@ -56,7 +59,7 @@ export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: 
         temperature: 0.6,
         max_tokens: 2048,
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 300);
