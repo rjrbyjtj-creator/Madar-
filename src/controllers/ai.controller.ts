@@ -996,6 +996,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     plannerContext,
     availableFilesContext,
     userId: user.role === "student" ? user._id : undefined,
+    plannerToolsEnabled: plannerRelevant,
     localDate: parsed.data.localDate,
     studentProfileContext,
     articleWriterContext: examGenerationMode ? [
