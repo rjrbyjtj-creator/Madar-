@@ -40,3 +40,21 @@ test("preserves circular geometry as a circle, not an ellipse", () => {
 test("rejects invalid coordinate ranges instead of emitting malformed SVG", () => {
   assert.equal(renderExamDiagram({ type: "coordinate", xMin: 2, xMax: 2, yMin: 0, yMax: 1 }), "");
 });
+
+test("renders compact monochrome electrical circuits", () => {
+  const svg = renderExamDiagram({
+    type: "circuit",
+    nodes: [{ x: 0, y: 0, label: "A" }, { x: 4, y: 0 }, { x: 4, y: 2 }, { x: 0, y: 2 }],
+    components: [
+      { kind: "battery", from: 0, to: 3, label: "V" },
+      { kind: "resistor", from: 0, to: 1, label: "R" },
+      { kind: "lamp", from: 1, to: 2, label: "L" },
+      { kind: "switch", from: 2, to: 3 },
+    ],
+  });
+  assert.match(svg, /^<svg[\\s\\S]*<\\/svg>$/);
+  assert.match(svg, /<polyline/);
+  assert.match(svg, /<circle/);
+  assert.match(svg, />R<\\/text>/);
+  assert.doesNotMatch(svg, /#[0-9a-f]{6}/i);
+});
