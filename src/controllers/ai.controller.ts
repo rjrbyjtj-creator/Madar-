@@ -65,7 +65,7 @@ function isExamGenerationRequest(message: string, conversationContext = ""): boo
     /(آزمون|امتحان|سوال|سؤال|برگه)/i.test(normalizeExamIntentText(conversationContext));
   const directPaperRequest = /(برگه\s*(?:امتحان|آزمون|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|آزمونک|امتحان\s*(?:تشریحی|تستی)?)/i.test(current);
   return (hasExamArtifact && (hasCreationIntent || hasExamScope || isExamFollowup || directPaperRequest)) ||
-    (hasQuestionArtifact && hasCreationIntent && /(از\s*(فصل|مبحث|درس|کتاب)|امتحان|آزمون|برگه)/i.test(combined));
+    (hasQuestionArtifact && hasCreationIntent);
 }
 function getRequestedExamTotalScore(message: string): number {
   const normalized = normalizeExamIntentText(message)
