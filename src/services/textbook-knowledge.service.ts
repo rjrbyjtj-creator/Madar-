@@ -425,12 +425,37 @@ export async function getTextbookPdfAttachment(question: string, conversationCon
       const treeUrl = API_BASE + "/repos/" + OWNER + "/" + REPOSITORY +
         "/git/trees/" + encodeURIComponent(BRANCH) + "?recursive=1";
       const tree = await githubRequest<{ tree: Array<{ path: string; type: string; size?: number; sha?: string }> }>(treeUrl);
-      const pdfPath = subject === "chemistry"
-        ? "textbooks/chemistry-3-grade-12-experimental-math-1405/shimi-12.pdf"
-        : "textbooks/physics-3-grade-12-math/source.pdf";
-      const file = tree.tree.find((item) => item.type === "blob" && item.path === pdfPath && Boolean(item.sha));
+      const subjectPrefix = subject === "chemistry"
+        ? "textbooks/chemistry-3-grade-12-experimental-math-1405/"
+        : subject === "physics"
+          ? "textbooks/physics-3-grade-12-math/"
+          : subject === "geometry"
+            ? "textbooks/geometry/"
+            : "textbooks/english/";
+      const preferredPath = subject === "chemistry"
+        ? subjectPrefix + "shimi-12.pdf"
+        : subjectPrefix + "source.pdf";
+      // Accept the actual uploaded textbook filename instead of requiring a
+      // hard-coded source.pdf name. Exclude question-bank PDFs from this lookup.
+      const candidates = tree.tree.filter((item) =>
+        item.type === "blob" &&
+        item.path.startsWith(subjectPrefix) &&
+        item.path.toLowerCase().endsWith(".pdf") &&
+        !/بانک|سوال|سؤال|question.?bank|sample.?exam|نمونه.?آزمون/i.test(item.path) &&
+        (item.size ?? 0) > 0 &&
+        (item.size ?? 0) <= 15_000_000 &&
+        Boolean(item.sha)
+      );
+      candidates.sort((a, b) =>
+        Number(b.path === preferredPath) - Number(a.path === preferredPath)
+      );
+      const file = candidates[0];
       if (!file?.sha) {
-        console.info("[TEXTBOOK] source PDF not found in private repository", { subject, expectedPath: pdfPath });
+        console.info("[TEXTBOOK] source PDF not found in private repository", {
+          subject,
+          expectedPrefix: subjectPrefix,
+          availableCandidates: candidates.map((item) => item.path),
+        });
         return undefined;
       }
       if ((file.size ?? 0) > 15_000_000) throw new Error("Textbook PDF exceeds the 15 MB processing limit");
