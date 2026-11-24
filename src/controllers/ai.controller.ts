@@ -914,9 +914,13 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     isExactTodayPlanReadRequest(latestUserMessage);
   const selectedProvider = parsed.data.model === "groq" || parsed.data.model === "grok" ? "groq" : parsed.data.model === "openrouter" ? "openrouter" : parsed.data.model === "cloudflare" ? "cloudflare" : parsed.data.model === "huggingface" ? "huggingface" : parsed.data.model === "coarena" ? "coarena" : "gemini";
   // Never pass a model ID belonging to another provider into Gemini.
-  const selectedGeminiModelId = selectedProvider === "gemini"
+  const requestedGeminiModelId = selectedProvider === "gemini"
     ? (parsed.data.modelId ?? env.GEMINI_MODEL ?? "gemini-3.8-flash")
     : (env.GEMINI_MODEL ?? "gemini-3.8-flash");
+  // Map the retired client-side selection to the current default during rollout.
+  const selectedGeminiModelId = requestedGeminiModelId === "gemini-3.6-flash"
+    ? "gemini-3.8-flash"
+    : requestedGeminiModelId;
   const recentConversationContext = history.slice(-6).map((item) => item.content).join("\n");
   // Indexed textbook Markdown is already available to every provider through availableFilesContext.
   // Attach the original PDF only when Gemini is selected (for diagrams and page-level visual analysis).
