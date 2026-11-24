@@ -58,7 +58,7 @@ function normalizeExamIntentText(value: string): string {
 function isExamGenerationRequest(message: string, previousUserMessages = ""): boolean {
   const current = normalizeExamIntentText(message);
   const history = normalizeExamIntentText(previousUserMessages);
-  const hasQuestionArtifact = /(آزمون|امتحان|آزمونک|کوییز|کوئیز|quiz|برگه\s*(?:امتحان|آزمون|تشریحی|تستی|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|سوال(?:ات)?|سؤال(?:ات)?|پرسش)/i.test(current);
+  const hasQuestionArtifact = /(آزمون|امتحان|آزمونک|کوییز|کوئیز|quiz|برگه|برگه\s*(?:امتحان|آزمون|تشریحی|تستی|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|سوال(?:ات)?|سؤال(?:ات)?|پرسش)/i.test(current);
   // Only explicit creation/quiz-taking verbs activate the heavy exam pipeline.
   // Words such as «بده»، «برام»، «ساختار» or an old assistant reply are not sufficient.
   const hasCreationIntent = /(?:طراحی\s*(?:کن|بکن|کنی|کنید|نمایش\s*بده)|طراحی\s+(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)|بساز(?:م|ی|ید)?|تهیه\s*(?:کن|بکن|کنی|کنید)|تولید\s*(?:کن|بکن|کنی|کنید)|آماده\s*(?:کن|بکن|کنی|کنید)|درست\s*کن|ایجاد\s*کن|ساخت(?:ن)?\s+(?:آزمون|امتحان|برگه|سوال|سؤال)|امتحان\s*بگیر|آزمون\s*بگیر|نمونه\s*سوال\s*بده|نمونه\s*سؤال\s*بده|می\s*خواهم|می\s*خوام|می\s*خواستم|می\s*خوامش|می\s*خوام\s*که|لازم\s*دارم|نیاز\s*دارم)/i.test(current);
