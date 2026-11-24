@@ -28,7 +28,7 @@ export const AIJob = model("AIJob", aiJobSchema);
 export async function ensureAIJobIndexes(): Promise<void> {
   const indexes = await AIJob.collection.indexes();
   const expiryIndex = indexes.find((index) => index.key?.expiresAt === 1);
-  if (expiryIndex && expiryIndex.expireAfterSeconds === undefined) {
+  if (expiryIndex?.name && expiryIndex.expireAfterSeconds === undefined) {
     await AIJob.collection.dropIndex(expiryIndex.name);
   }
   await AIJob.collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
