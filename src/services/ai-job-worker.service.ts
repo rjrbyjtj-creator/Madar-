@@ -44,7 +44,7 @@ async function processNextExamJob(): Promise<void> {
         },
         $inc: { attempts: 1 },
       },
-      { new: true, sort: { createdAt: 1 } },
+      { returnDocument: "after", sort: { createdAt: 1 } },
     );
 
     if (!job) return;
