@@ -19,6 +19,8 @@ async function processNextExamJob(): Promise<void> {
   if (polling) return;
   polling = true;
   let heartbeat: NodeJS.Timeout | undefined;
+  let claimedJobId: string | undefined;
+  let leaseToken: string | undefined;
 
   try {
     const now = new Date();
@@ -47,6 +49,8 @@ async function processNextExamJob(): Promise<void> {
 
     if (!job) return;
     const jobId = String(job._id);
+    claimedJobId = jobId;
+    leaseToken = workerToken;
     logger.info({ jobId, attempt: job.attempts }, "Claimed exam generation job");
 
     if (job.attempts > MAX_ATTEMPTS) {
@@ -124,11 +128,13 @@ async function processNextExamJob(): Promise<void> {
     logger.error({ error: message }, "Exam generation worker failed");
     // Only the worker holding the current lease may transition the job to failed.
     // A worker that lost its lease must not overwrite the newer worker's status.
-    const jobId = (error as { jobId?: string } | undefined)?.jobId;
-    if (jobId) {
+    if (claimedJobId && leaseToken) {
       await AIJob.updateOne(
-        { _id: jobId, status: "processing" },
-        { $set: { status: "failed", progress: "ساخت آزمون با خطا متوقف شد", error: message.slice(0, 1200) } },
+        { _id: claimedJobId, status: "processing", lockToken: leaseToken },
+        {
+          $set: { status: "failed", progress: "ساخت آزمون با خطا متوقف شد", error: message.slice(0, 1200) },
+          $unset: { lockToken: 1, lockedAt: 1 },
+        },
       ).catch((updateError: unknown) => {
         logger.error({ error: updateError instanceof Error ? updateError.message : String(updateError) }, "Could not persist exam job failure");
       });
