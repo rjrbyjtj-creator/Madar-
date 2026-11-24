@@ -68,6 +68,15 @@ const DEFAULT_THEMES: Array<{
     },
     font: "vazir", mode: "light", isDefault: true,
   },
+  {
+    name: "چت‌جی‌پی‌تی",
+    slug: "chatgpt",
+    colors: {
+      navy: "#0D0D0D", gold: "#10A37F", bg: "#000000", green: "#10A37F",
+      text: "#ECECEC", muted: "#A1A1A1", surface: "#1C1C1C", line: "#303030",
+    },
+    font: "vazir", mode: "dark", isDefault: true,
+  },
 ];
 
 export function toPublicTheme(doc: ThemeDocument | Record<string, unknown>): PublicTheme {
@@ -93,11 +102,11 @@ export function fontCss(font: string): string {
 export async function seedDefaultThemes(): Promise<void> {
   try {
     for (const theme of DEFAULT_THEMES) {
-      if (theme.slug === "gray" || theme.slug === "claude") {
+      if (theme.slug === "gray" || theme.slug === "claude" || theme.slug === "chatgpt") {
         // Keep built-in visual packs aligned with their source palettes on every startup.
         await Theme.updateOne(
           { slug: theme.slug },
-          { $set: { name: theme.name, colors: theme.colors, font: theme.font, isDefault: true }, $setOnInsert: { slug: theme.slug, mode: theme.mode, isActive: false } },
+          { $set: { name: theme.name, colors: theme.colors, font: theme.font, mode: theme.mode, isDefault: true }, $setOnInsert: { slug: theme.slug, isActive: false } },
           { upsert: true },
         );
       } else {
