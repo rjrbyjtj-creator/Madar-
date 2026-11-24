@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Request, Response } from "express";
 import { Conversation } from "../models/Conversation.js";
 import { ChatAttachment } from "../models/ChatAttachment.js";
+import { AIJob } from "../models/AIJob.js";
 import { Plan } from "../models/Plan.js";
 import { StudyFile } from "../models/StudyFile.js";
 import { StudentAcademicHistory } from "../models/StudentAcademicHistory.js";
@@ -697,6 +698,41 @@ export async function uploadChatDocument(req: Request, res: Response): Promise<v
     fileName,
     mimeType,
     expiresAt,
+  });
+}
+
+export async function getAIJob(req: Request, res: Response): Promise<void> {
+  const user = res.locals.user as AuthUser;
+  const id = String(req.params.id ?? "");
+  if (!mongoose.isValidObjectId(id)) {
+    throw new AppError(400, "INVALID_AI_JOB_ID", "شناسه فرایند معتبر نیست.");
+  }
+
+  let job = await AIJob.findOne({ _id: id, user: user._id })
+    .select("_id status progress result error updatedAt")
+    .lean();
+  if (!job) throw new AppError(404, "AI_JOB_NOT_FOUND", "فرایند ساخت آزمون پیدا نشد.");
+
+  const updatedAt = job.updatedAt instanceof Date ? job.updatedAt.getTime() : new Date(job.updatedAt as unknown as string).getTime();
+  if (
+    (job.status === "queued" || job.status === "processing") &&
+    Number.isFinite(updatedAt) &&
+    Date.now() - updatedAt > 15 * 60_000
+  ) {
+    await AIJob.updateOne(
+      { _id: job._id, status: { $in: ["queued", "processing"] } },
+      { $set: { status: "failed", progress: "فرایند متوقف شد", error: "اجرای ساخت آزمون پس از راه‌اندازی مجدد سرور ادامه پیدا نکرد. لطفاً دوباره تلاش کن." } },
+    );
+    job = await AIJob.findById(id).select("_id status progress result error updatedAt").lean() ?? job;
+  }
+
+  res.json({
+    ok: true,
+    jobId: String(job._id),
+    status: job.status,
+    progress: job.progress,
+    ...(job.status === "completed" && job.result ? { result: job.result } : {}),
+    ...(job.status === "failed" ? { error: job.error || "ساخت آزمون ناموفق بود." } : {}),
   });
 }
 
