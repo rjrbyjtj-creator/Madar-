@@ -251,7 +251,7 @@ type ExamProvider = "gemini" | "groq" | "openrouter" | "cloudflare" | "huggingfa
 
 async function generateExamStageReply(
   messages: GeminiMessage[],
-  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string },
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string; jobToken?: string },
   provider: ExamProvider,
   modelId: string,
 ): Promise<{ text: string }> {
@@ -299,7 +299,7 @@ async function generateExamInStages(
   const updateProgress = async (progress: string) => {
     if (!context.jobId) return;
     await AIJob.findOneAndUpdate(
-      { _id: context.jobId, status: "processing" },
+      { _id: context.jobId, status: "processing", ...(context.jobToken ? { lockToken: context.jobToken } : {}) },
       { $set: { progress, lockedAt: new Date() } },
     ).catch((error: unknown) => {
       console.warn("[EXAM_JOB] progress update failed:", error instanceof Error ? error.message : error);
@@ -996,6 +996,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     articleWriterContext: aiStudentContext.articleWriterContext,
     requestDeadlineMs: examRequestDeadlineMs,
     jobId: String((res.locals as Record<string, unknown>).examJobId || "") || undefined,
+    jobToken: String((res.locals as Record<string, unknown>).examJobToken || "") || undefined,
   } : aiStudentContext;
 
   const aiResult = examSourceMissing
