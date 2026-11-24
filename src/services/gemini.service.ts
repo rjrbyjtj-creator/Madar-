@@ -31,7 +31,6 @@ const SYSTEM_INSTRUCTION = `
 
 export const GEMINI_MODEL_IDS = [
   "gemini-3.8-flash",
-  "gemini-3.6-flash",
   "gemini-3.5-flash-lite",
 ] as const;
 
@@ -351,7 +350,7 @@ export async function generateGeminiReply(
 
   const primary = selectedModel ?? env.GEMINI_MODEL ?? "gemini-3.8-flash";
   // Try the primary and both supported Flash fallbacks; this is especially useful during transient 503/504 incidents.
-  const modelOrder = [primary, "gemini-3.6-flash", "gemini-3.5-flash-lite"];
+  const modelOrder = [primary, "gemini-3.5-flash-lite"];
   const attempts: Array<{ model: string; timeoutMs: number }> = modelOrder
     .filter((model, index, all) => all.indexOf(model) === index)
     .map((model, index) => ({
