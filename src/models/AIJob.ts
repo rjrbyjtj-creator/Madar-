@@ -15,6 +15,7 @@ const aiJobSchema = new Schema(
     progress: { type: String, trim: true, maxlength: 200, default: "در صف ساخت آزمون" },
     payload: { type: Schema.Types.Mixed, required: true },
     lockedAt: { type: Date, default: null },
+    lockToken: { type: String, maxlength: 64, default: null },
     attempts: { type: Number, min: 0, default: 0 },
     result: { type: Schema.Types.Mixed, default: undefined },
     error: { type: String, trim: true, maxlength: 1200, default: "" },
