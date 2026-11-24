@@ -116,6 +116,7 @@ export async function generateGroqReply(
     localDate?: string;
     studentProfileContext?: string;
     requestDeadlineMs?: number;
+    plannerToolsEnabled?: boolean;
   },
   modelId: typeof GROQ_MODEL_IDS[number] = env.GROQ_MODEL as typeof GROQ_MODEL_IDS[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
@@ -136,7 +137,7 @@ export async function generateGroqReply(
     witty: "خودمانی و پرانرژی حرف بزن و گاهی شوخی کوتاه، هوشمندانه و بی‌آزار داشته باش؛ فقط وقتی طبیعی و متناسب با فضاست. هرگز لحن تمسخرآمیز نداشته باش و دقت و وضوح را فدای شوخی نکن.",
   } as const;
 
-  const plannerRules = student.userId ? [
+  const plannerRules = student.userId && student.plannerToolsEnabled ? [
     "ابزارهای واقعی برنامه‌ریزی در اختیار توست؛ برای خواندن برنامه ذخیره‌شده همین دانش‌آموز از get_my_plans استفاده کن.",
     "برای ساخت برنامه فقط propose_plan را فراخوانی کن. این ابزار پیش‌نویس می‌سازد و چیزی ذخیره نمی‌کند؛ ذخیره فقط پس از تأیید صریح دانش‌آموز انجام می‌شود.",
     "اگر دانش‌آموز صریحاً خواست فعالیت مشخصی حذف شود، ابتدا get_my_plans را اجرا کن و سپس propose_delete_plans را فقط با تاریخ و شناسه دقیق فعالیت‌های درخواستی اجرا کن. حذف فقط پس از تأیید در رابط چت انجام می‌شود. هرگز همه برنامه را حدس‌زده حذف نکن.",
@@ -164,7 +165,7 @@ export async function generateGroqReply(
 
   let proposal: PlannerProposal | undefined;
   let deletionProposal: PlannerDeletionProposal | undefined;
-  const tools = student.userId ? toolDefinitions() : undefined;
+  const tools = student.userId && student.plannerToolsEnabled ? toolDefinitions() : undefined;
 
   try {
     for (let round = 0; round < 5; round += 1) {
