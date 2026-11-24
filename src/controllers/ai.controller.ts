@@ -84,13 +84,13 @@ function getRequestedExamTotalScore(message: string): number {
   return wordMatch ? wordScores[wordMatch[1]] ?? 20 : 20;
 }
 
-function getRequestedExamQuestionCount(message: string): number {
-  const normalized = normalizeExamIntentText(message)
+function getRequestedExamQuestionCount(message: string, previousUserMessages = ""): number {
+  const normalizeDigits = (value: string) => normalizeExamIntentText(value)
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
-  const match = normalized.match(
-    /(?:تعداد\s*)?(\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i,
-  );
+  const countPattern = /(?:تعداد\s*)?(\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i;
+  const candidates = [message, ...previousUserMessages.split("\n").reverse()];
+  const match = candidates.map((candidate) => normalizeDigits(candidate).match(countPattern)).find(Boolean);
   if (!match) return 12;
   const words: Record<string, number> = {
     "یک": 1, "دو": 2, "سه": 3, "چهار": 4, "پنج": 5, "شش": 6,
@@ -282,7 +282,7 @@ async function generateExamStageReply(
 
 async function generateExamInStages(
   messages: GeminiMessage[],
-  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string },
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number },
   provider: ExamProvider,
   modelId: string,
   requestedQuestionCount = 12,
@@ -291,9 +291,9 @@ async function generateExamInStages(
   if (!latest) throw new Error("پیام آزمون پیدا نشد.");
   const baseInstructions = context.articleWriterContext ?? "";
   const attachments = latest.attachments ?? [];
-  // The full 3-stage exam pipeline has a 9-minute internal budget so the
-  // browser's 10-minute deadline leaves time to persist and return the paper.
-  const requestDeadlineMs = Date.now() + 9 * 60_000;
+  // Use the deadline established before source retrieval; all preparation and
+  // three model stages share the same bounded request budget.
+  const requestDeadlineMs = context.requestDeadlineMs ?? Date.now() + 9 * 60_000;
   const withStage = (instruction: string, includeSourceFiles = false): GeminiMessage[] => [
     {
       role: "user",
@@ -763,9 +763,12 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
-  const examIntentContext = history.slice(-6).filter((item) => item.role === "user").map((item) => item.content).join("\n");
+  // Only previous user turns may carry exam intent forward; assistant prose must not activate exam generation.
+  const examIntentContext = history.filter((item) => item.role === "user").slice(-6).map((item) => item.content).join("\n");
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
-  const requestedExamQuestionCount = getRequestedExamQuestionCount(latestUserMessage);
+  const requestedExamQuestionCount = getRequestedExamQuestionCount(latestUserMessage, examIntentContext);
+  // Start one shared budget before loading/indexing/uploading exam sources.
+  const examRequestDeadlineMs = examGenerationMode ? Date.now() + 9 * 60_000 : undefined;
   const examBankContext = examGenerationMode ? await (async () => {
     const normalized = normalizeExamIntentText(latestUserMessage);
     const grade = /(?:پایه\s*)?(?:دهم|10|۱۰)/.test(normalized) ? "10"
@@ -905,7 +908,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       "تنوع و کیفیت: فقط سؤال‌های کلیشه‌ای یا حفظی نساز؛ در صورت تناسب ترکیبی از مفهومی، محاسباتی، تحلیل داده/آزمایش و استدلال چندمرحله‌ای طراحی کن. سطح دشواری باید تدریجی و متناسب با درخواست باشد. از نمونه بانک سؤال فقط الگوی مهارت و سبک را بگیر، نه متن یا اعداد همان سؤال را.",
       "بازبینی نهایی اجباری پیش از خروجی: هر سؤال را ذهنی حل کن؛ پاسخ یکتا/قابل دفاع، صحت محاسبات و واحدها، کافی بودن داده‌ها، تناسب با پایه و فصل، مستقل بودن صورت سؤال و تناسب بارم با زمان را بررسی کن. اگر پاسخ مطمئن یا داده کافی نداری، سؤال را حذف یا اصلاح کن؛ هیچ سؤال مشکوک علمی را وارد آزمون نکن.",
       'ساختار دقیق: {"examTitle":string,"subject":string,"grade":string,"field":string,"duration":string,"totalScore":number,"questions":[{"number":number,"text":string,"score":number,"section":string,"answerLines":number,"figureSvg":string,"figureAlt":string}]}',
-      "تعداد سؤال‌های اصلی برگه باید متناسب با حجم محدوده، تعداد فصل‌ها، تنوع اهداف آموزشی و زمان آزمون انتخاب شود و حتماً بین ۱۲ تا ۱۸ سؤال شماره‌دار باشد؛ برای مبحث کم‌حجم به ۱۲ نزدیک شو و برای محدوده گسترده‌تر به ۱۸. این بازه را با زیربخش‌ها اشتباه نگیر: هر سؤال اصلی می‌تواند چند زیربخش داشته باشد. از ساخت کمتر از ۱۲ یا بیشتر از ۱۸ سؤال اصلی خودداری کن. بارم هر سؤال اصلی برابر مجموع بارم زیربخش‌های آن باشد و جمع کل دقیقاً برابر totalScore باشد.",
+      "تعداد سؤال‌های اصلی باید دقیقاً مطابق تعداد صریحاً درخواستی دانش‌آموز باشد؛ اگر تعداد ذکر نشده، پیش‌فرض ۱۲ سؤال است. هیچ محدودیت ثابت ۱۲ تا ۱۸ سؤال اعمال نکن. بارم هر سؤال اصلی برابر مجموع بارم زیربخش‌های آن باشد و جمع کل دقیقاً برابر totalScore باشد.",
       "نام درس، پایه، رشته، فصل و محدوده‌ای را که کاربر گفته دقیق رعایت کن. صورت هر سؤال باید کامل، روشن، مستقل و قابل پاسخ باشد. پاسخ یا راه‌حل را داخل برگه ننویس. برای هر سؤال ۲ تا ۴ خط پاسخ پیشنهاد بده. واحدها را به زبان طبیعی و خوانا بنویس (مثلاً «۵ کیلوگرم»)، نه به شکل کد. اگر نماد یا فرمول لازم است از TeX درون‌خطی با delimiters استاندارد \\( ... \\) استفاده کن؛ مثلاً \\(5\\,\\mathrm{kg}\\). هرگز فرمول را داخل backticks یا code fence نگذار و هیچ قطعه کدی تولید نکن.",
       "اگر برای فهم یا حل سؤال وجود شکل، نمودار، مدار، جسم روی سطح شیب‌دار، قرقره، بردار یا محور مختصات لازم است، برای همان سؤال figureSvg و figureAlt تولید کن. figureSvg باید یک SVG کامل و معتبر با viewBox (ترجیحاً 0 0 640 300)، فقط با عناصر هندسی svg/g/line/path/rect/circle/ellipse/polygon/polyline/text/tspan/defs/marker و ویژگی‌های ساده fill/stroke/stroke-width/font-size/text-anchor باشد؛ هیچ script، foreignObject، image، لینک، CSS، رویداد یا کد دیگری ننویس. شکل باید خوانا، دقیق، متناسب با داده‌های سؤال و بدون اطلاعات اضافی باشد. سؤال‌های بدون نیاز به شکل، این دو فیلد را حذف کنند. نمودار داده‌محور باید محور، برچسب و نقاط/منحنی متناسب با داده‌های خود سؤال داشته باشد؛ داده یا برچسب ساختگی اضافه نکن.",
       "اگر availableFilesContext منبع بازیابی‌شده مرتبط دارد، سؤال‌ها را بر پایه همان منبع طراحی کن و جزئیات خارج از آن را به‌عنوان محتوای کتاب معرفی نکن. اگر منبعی بازیابی نشده، ادعا نکن کتاب یا بانک نمونه‌سؤال را بررسی کرده‌ای؛ فقط از دانش آموزشی معتبر خودت سؤال بساز.",
@@ -923,6 +926,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     persona: "balanced" as const,
     availableFilesContext: availableFilesContext?.slice(0, 9000),
     articleWriterContext: aiStudentContext.articleWriterContext,
+    requestDeadlineMs: examRequestDeadlineMs,
   } : aiStudentContext;
 
   const aiResult = examSourceMissing
