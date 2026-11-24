@@ -61,7 +61,8 @@ function isExamGenerationRequest(message: string, previousUserMessages = ""): bo
   const hasQuestionArtifact = /(آزمون|امتحان|آزمونک|کوییز|کوئیز|quiz|برگه\s*(?:امتحان|آزمون|تشریحی|تستی|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|سوال(?:ات)?|سؤال(?:ات)?|پرسش)/i.test(current);
   // Only explicit creation/quiz-taking verbs activate the heavy exam pipeline.
   // Words such as «بده»، «برام»، «ساختار» or an old assistant reply are not sufficient.
-  const explicitCreationVerb = /(?:طراحی\s*(?:کن|بکن|کنی|کنید)|بساز(?:م|ی|ید)?|تهیه\s*(?:کن|بکن|کنی|کنید)|تولید\s*(?:کن|بکن|کنی|کنید)|آماده\s*(?:کن|بکن|کنی|کنید)|درست\s*کن|ایجاد\s*کن|امتحان\s*بگیر|آزمون\s*بگیر)/i.test(current);
+  const directDeliverableRequest = /(?:برگه\s*(?:امتحان(?:ی)?|آزمون)|نمونه\s*سؤال?|آزمون|امتحان)\s*(?:رو\s*)?(?:(?:به\s*من|بهم|برام|واسم)\s*)?(?:بده|بفرست|ارائه\s*کن)/i.test(current);
+  const explicitCreationVerb = directDeliverableRequest || /(?:طراحی\s*(?:کن|بکن|کنی|کنید)|بساز(?:م|ی|ید)?|تهیه\s*(?:کن|بکن|کنی|کنید)|تولید\s*(?:کن|بکن|کنی|کنید)|آماده\s*(?:کن|بکن|کنی|کنید)|درست\s*کن|ایجاد\s*کن|امتحان\s*بگیر|آزمون\s*بگیر)/i.test(current);
   const hasCreationIntent = explicitCreationVerb ||
     (/می\s*(?:خواهم|خوام|خواستم|خوامش)|لازم\s*دارم|نیاز\s*دارم/i.test(current) &&
       (/(?:\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i.test(current) ||
