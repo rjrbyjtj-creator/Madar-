@@ -305,10 +305,13 @@ async function generateExamInStages(
       console.warn("[EXAM_JOB] progress update failed:", error instanceof Error ? error.message : error);
     });
   };
+  const compactUserRequest = latest.content.split("\n\n[کتاب و بانک سؤال از کتابخانه خصوصی Robo-Knowledge")[0];
   const withStage = (instruction: string, includeSourceFiles = false): GeminiMessage[] => [
     {
       role: "user",
-      content: latest.content + "\n\n" + instruction,
+      // Full map metadata is needed only in the source-analysis stage. Later stages
+      // receive the analyzed blueprint instead of re-sending repository metadata.
+      content: (includeSourceFiles ? latest.content : compactUserRequest) + "\n\n" + instruction,
       ...(includeSourceFiles && attachments.length ? { attachments } : {}),
     },
   ];
@@ -345,6 +348,7 @@ async function generateExamInStages(
     "فقط JSON نهایی با ساختار تعیین‌شده برگردان؛ هیچ توضیح بیرون JSON ننویس."
   ].join("\n")), {
     ...context,
+    availableFilesContext: undefined,
     requestDeadlineMs,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله تولید نسخه اولیه است؛ نقشه تحلیل را دقیق اجرا کن."
   }, provider, modelId);
@@ -366,6 +370,7 @@ async function generateExamInStages(
     "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید دقیقاً " + requestedQuestionCount + " باشد؛ شماره‌ها از ۱ تا " + requestedQuestionCount + " پیوسته باشند؛ جمع بارم سؤال‌ها دقیقاً برابر totalScore باشد؛ بارم‌ها مضرب ۰٫۲۵ باشند. هیچ پاسخ‌نامه‌ای در برگه قرار نده."
   ].join("\n")), {
     ...context,
+    availableFilesContext: undefined,
     requestDeadlineMs,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله بازبین مستقل است؛ خطاها را اصلاح کن و فقط JSON نهایی را برگردان."
   }, provider, modelId);
