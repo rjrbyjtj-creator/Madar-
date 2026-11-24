@@ -37,8 +37,21 @@ function escapeHtml(value: unknown): string {
 const faDigits = (value: unknown): string =>
   String(value ?? "").replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)]).replace(/\./g, "/");
 
-function renderQuestionText(value: string): string {
+function renderQuestionText(value: string, languageMode = false): string {
   const source = String(value ?? "").replace(/`([^`\n]+)`/g, "$1");
+  if (languageMode) {
+    return source.split(/\\r?\\n/).map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '<div class="language-spacer"></div>';
+      const isOption = /^(?:[A-Da-d][).:]|[A-Da-d]\\s+-)/.test(trimmed);
+      const latin = (trimmed.match(/[A-Za-z]/g) ?? []).length;
+      const letters = (trimmed.match(/[A-Za-z\\u0600-\\u06FF]/g) ?? []).length;
+      const isEnglish = latin >= 3 && latin / Math.max(1, letters) >= 0.55;
+      if (isOption) return '<div class="language-option" dir="ltr" lang="en">' + escapeHtml(trimmed) + '</div>';
+      if (isEnglish) return '<div class="language-english-line" dir="ltr" lang="en">' + escapeHtml(trimmed) + '</div>';
+      return '<div class="language-persian-line" dir="rtl" lang="fa">' + escapeHtml(trimmed) + '</div>';
+    }).join("");
+  }
   const parts = source.split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\$(?!\$)[^\n$]+\$)/g);
   return parts.map((part) => {
     if (part.startsWith("\\(") && part.endsWith("\\)")) return '<span class="math-inline">' + part + "</span>";
@@ -124,7 +137,7 @@ function renderStudentInfo(data: ExamPaperData): string {
   ).join("\n");
 }
 
-function renderQuestionBlocks(questions: ExamPaperQuestion[]): string {
+function renderQuestionBlocks(questions: ExamPaperQuestion[], languageMode = false): string {
   let currentSection = "";
   return questions.map((question) => {
     const section = question.section?.trim() ?? "";
@@ -141,7 +154,7 @@ function renderQuestionBlocks(questions: ExamPaperQuestion[]): string {
       : "";
     return sectionMarkup + '\n<div class="q">' +
       '<div class="n"></div>' +
-      '<div><div class="qt">' + renderQuestionText(question.text) + "</div>" + figureMarkup + answerLines + "</div>" +
+      '<div><div class="qt">' + renderQuestionText(question.text, languageMode) + "</div>" + figureMarkup + answerLines + "</div>" +
       '<div class="b"><span class="bv">' + escapeHtml(faDigits(question.score)) + "</span></div>" +
       "</div>";
   }).join("\n");
@@ -154,9 +167,11 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
   if (Math.abs(scoreSum - data.totalScore) > 0.001) {
     throw new Error("Question scores (" + scoreSum + ") do not equal the declared total (" + data.totalScore + ").");
   }
+  const languageMode = /(?:زبان|انگلیسی|english)/i.test(data.subject + " " + data.examTitle);
   const template = await readFile(TEMPLATE_PATH, "utf8");
   const values: Record<string, string> = {
     documentTitle: escapeHtml(data.examTitle),
+    subjectClass: languageMode ? "language-exam" : "",
     examTitle: escapeHtml(data.examTitle),
     subject: escapeHtml(data.subject),
     grade: escapeHtml(data.grade),
@@ -164,7 +179,7 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
     duration: escapeHtml(data.duration),
     totalScore: escapeHtml(faDigits(data.totalScore)),
     studentInfo: renderStudentInfo(data),
-    questionBlocks: renderQuestionBlocks(data.questions),
+    questionBlocks: renderQuestionBlocks(data.questions, languageMode),
   };
   return template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
 }
