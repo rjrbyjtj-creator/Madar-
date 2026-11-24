@@ -164,8 +164,12 @@ export async function generateCloudflareReply(
       }
 
       const data = await response.json() as {
-        choices?: Array<{ message?: { content?: string | null; tool_calls?: CloudflareToolCall[] } }>;
+        choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: CloudflareToolCall[] } }>;
       };
+      const finishReason = data.choices?.[0]?.finish_reason;
+      if (finishReason === "length") {
+        throw new AppError(502, "CLOUDFLARE_MAX_TOKENS", "خروجی مدل Cloudflare به سقف توکن رسید و ناقص ماند. محدوده آزمون را کوتاه‌تر کن یا آن را در دو بخش بساز.");
+      }
       const message = data.choices?.[0]?.message;
       const calls = message?.tool_calls ?? [];
       if (!calls.length) {
