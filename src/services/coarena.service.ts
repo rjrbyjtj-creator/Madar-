@@ -69,7 +69,11 @@ export async function generateCoarenaReply(messages: CoarenaMessage[], modelId: 
       if (response.status === 429) throw new AppError(429, "COARENA_RATE_LIMITED", "محدودیت درخواست یا سهمیه Coarena فعال شده است.");
       throw new AppError(response.status >= 500 ? 503 : 502, "COARENA_PROVIDER_ERROR", "سرویس Coarena در حال حاضر نتوانست پاسخ بدهد.");
     }
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> | null } }> };
+    const data = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string | Array<{ type?: string; text?: string }> | null } }> };
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (finishReason === "length") {
+      throw new AppError(502, "COARENA_MAX_TOKENS", "خروجی مدل Coarena به سقف توکن رسید و ناقص ماند. محدوده آزمون را کوتاه‌تر کن یا آن را در دو بخش بساز.");
+    }
     const content = data.choices?.[0]?.message?.content;
     const text = typeof content === "string" ? content.trim() : Array.isArray(content) ? content.map((part) => part.text ?? "").join("\n").trim() : "";
     if (!text) throw new AppError(502, "COARENA_EMPTY_RESPONSE", "مدل Coarena پاسخ متنی برنگرداند.");
