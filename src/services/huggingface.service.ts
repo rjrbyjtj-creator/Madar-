@@ -169,8 +169,12 @@ export async function generateHuggingFaceReply(
       }
 
       const data = await response.json() as {
-        choices?: Array<{ message?: { content?: string | null; tool_calls?: HuggingFaceToolCall[] } }>;
+        choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: HuggingFaceToolCall[] } }>;
       };
+      const finishReason = data.choices?.[0]?.finish_reason;
+      if (finishReason === "length") {
+        throw new AppError(502, "HUGGINGFACE_MAX_TOKENS", "خروجی مدل Hugging Face به سقف توکن رسید و ناقص ماند. محدوده آزمون را کوتاه‌تر کن یا آن را در دو بخش بساز.");
+      }
       const message = data.choices?.[0]?.message;
       const calls = message?.tool_calls ?? [];
       if (!calls.length) {
