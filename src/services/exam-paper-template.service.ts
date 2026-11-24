@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { renderExamDiagram } from "./exam-diagram.service.js";
 
 export interface ExamPaperQuestion {
   number: number;
@@ -8,6 +9,7 @@ export interface ExamPaperQuestion {
   section?: string;
   answerLines?: number;
   figureSvg?: string;
+  figureSpec?: import("./exam-diagram.service.js").ExamDiagramSpec;
   figureAlt?: string;
 }
 
@@ -149,7 +151,8 @@ function renderQuestionBlocks(questions: ExamPaperQuestion[], languageMode = fal
       : "";
     const lines = Math.max(1, Math.min(8, Math.floor(question.answerLines ?? 2)));
     const answerLines = '<div class="ans" style="height:' + (lines * 22) + 'px"></div>';
-    const figureSvg = question.figureSvg ? sanitizeQuestionSvg(question.figureSvg) : "";
+    const generatedFigure = question.figureSpec ? renderExamDiagram(question.figureSpec) : "";
+    const figureSvg = generatedFigure || (question.figureSvg ? sanitizeQuestionSvg(question.figureSvg) : "");
     const figureMarkup = figureSvg
       ? '<figure class="question-figure">' + figureSvg +
         (question.figureAlt ? '<figcaption>' + escapeHtml(question.figureAlt) + "</figcaption>" : "") + "</figure>"
