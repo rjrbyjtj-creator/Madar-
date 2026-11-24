@@ -81,6 +81,7 @@ export async function generateCloudflareReply(
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
     studentProfileContext?: string;
+    requestDeadlineMs?: number;
   },
   modelId: typeof CLOUDFLARE_MODEL_IDS[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
@@ -133,6 +134,8 @@ export async function generateCloudflareReply(
 
   try {
     for (let round = 0; round < 5; round += 1) {
+      const timeoutMs = student.requestDeadlineMs ? Math.min(600_000, student.requestDeadlineMs - Date.now()) : 45_000;
+      if (timeoutMs <= 0) throw new AppError(504, "CLOUDFLARE_TIMEOUT", "مهلت ساخت آزمون به پایان رسید.");
       const response = await fetch("https://api.cloudflare.com/client/v4/accounts/" + env.CLOUDFLARE_ACCOUNT_ID + "/ai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -143,10 +146,10 @@ export async function generateCloudflareReply(
           model: modelId,
           messages: chatMessages,
           temperature: 0.6,
-          max_tokens: student.articleWriterContext ? 4096 : 2048,
+          max_tokens: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 8192 : student.articleWriterContext ? 4096 : 2048,
           ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
         }),
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       if (!response.ok) {
