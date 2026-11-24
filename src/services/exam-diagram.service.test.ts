@@ -53,9 +53,10 @@ test("renders compact monochrome electrical circuits", () => {
       { kind: "switch", from: 2, to: 3 },
     ],
   });
-  assert.match(svg, /^<svg[\\s\\S]*<\\/svg>$/);
+  assert.match(svg, /^<svg[\s\S]*<\/svg>$/);
   assert.match(svg, /<polyline/);
   assert.match(svg, /<circle/);
-  assert.match(svg, />R<\\/text>/);
-  assert.doesNotMatch(svg, /#[0-9a-f]{6}/i);
+  assert.match(svg, />R<\/text>/);
+  const colors = [...svg.matchAll(/(?:stroke|fill)="(#[0-9a-f]{3,6})"/gi)].map((m) => m[1]);
+  assert.deepEqual([...new Set(colors)].sort(), ["#111", "#d7d7d7"]);
 });
