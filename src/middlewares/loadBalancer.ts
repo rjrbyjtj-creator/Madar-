@@ -129,12 +129,13 @@ export async function loadBalancerProxy(
       ? (req.body === undefined ? undefined : JSON.stringify(req.body))
       : (req as unknown as BodyInit);
 
+  const requestTimeoutMs = path === "/ai/chat" ? 600_000 : 120_000;
   const init: RequestInit & { duplex?: "half" } = {
     method,
     headers: requestHeaders(req),
     body,
     redirect: "manual",
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(requestTimeoutMs),
   };
   if (hasBody && !isJson && body !== undefined) init.duplex = "half";
 
