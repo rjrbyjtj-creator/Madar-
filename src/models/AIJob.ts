@@ -13,6 +13,9 @@ const aiJobSchema = new Schema(
       index: true,
     },
     progress: { type: String, trim: true, maxlength: 200, default: "در صف ساخت آزمون" },
+    payload: { type: Schema.Types.Mixed, required: true },
+    lockedAt: { type: Date, default: null },
+    attempts: { type: Number, min: 0, default: 0 },
     result: { type: Schema.Types.Mixed, default: undefined },
     error: { type: String, trim: true, maxlength: 1200, default: "" },
     expiresAt: { type: Date, required: true },
@@ -22,6 +25,7 @@ const aiJobSchema = new Schema(
 
 aiJobSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 aiJobSchema.index({ user: 1, createdAt: -1 });
+aiJobSchema.index({ status: 1, lockedAt: 1, createdAt: 1 });
 
 export const AIJob = model("AIJob", aiJobSchema);
 
