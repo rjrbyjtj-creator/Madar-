@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { createApp } from "./app.js";
 import { connectDB } from "./config/database.js";
 import { env } from "./config/env.js";
+import { ensureAIJobIndexes } from "./models/AIJob.js";
 import { seedDefaultAdmin } from "./services/seed.service.js";
 import { seedDefaultThemes } from "./services/theme.service.js";
 import { seedDefaultArticles } from "./services/articles.service.js";
@@ -33,6 +34,8 @@ async function shutdown(signal: string, server: Server): Promise<void> {
 async function startServer(): Promise<void> {
   try {
     await connectDB();
+    try { await ensureAIJobIndexes(); }
+    catch (error) { logger.warn({ err: error instanceof Error ? error.message : error }, "AI job TTL index setup failed"); }
     try { await initializeMusicStore(); } catch (error) { console.error("[MUSIC_DB] Turso initialization failed; other backend features will continue:", error instanceof Error ? error.message : error); }
     try { await initializeQuestionBankStore(); } catch (error) { console.error("[QUESTION_BANK] Turso initialization failed; other backend features will continue:", error instanceof Error ? error.message : error); }
     await seedDefaultAdmin();
