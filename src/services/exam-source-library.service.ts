@@ -105,12 +105,18 @@ export async function getExamSourceLibrary(message: string, uploadPdfsToGemini =
   if (totalBytes > 35_000_000) throw new Error("Selected textbook and question-bank PDFs exceed the 35 MB combined processing limit");
   // Non-Gemini providers use indexed text excerpts. Do not upload PDFs to
   // Gemini just to discover that the selected provider cannot consume those file URIs.
-  const bookAttachments = uploadPdfsToGemini
-    ? await Promise.all(selectedBooks.map(getAttachment))
-    : [];
-  const bankAttachments = uploadPdfsToGemini
-    ? await Promise.all(selectedBanks.map(getAttachment))
-    : [];
+  const selectedFiles = [...selectedBooks, ...selectedBanks];
+  const uploadedAttachments: NonNullable<GeminiMessage["attachments"]> = [];
+  if (uploadPdfsToGemini) {
+    // Limit upload concurrency: flooding one Gemini project with up to eight
+    // simultaneous Files API uploads makes rate limiting more likely.
+    for (let offset = 0; offset < selectedFiles.length; offset += 2) {
+      const batch = await Promise.all(selectedFiles.slice(offset, offset + 2).map(getAttachment));
+      uploadedAttachments.push(...batch);
+    }
+  }
+  const bookAttachments = uploadedAttachments.slice(0, selectedBooks.length);
+  const bankAttachments = uploadedAttachments.slice(selectedBooks.length);
   const mapFiles = tree.tree.filter((item) => item.type === "blob" && item.path.startsWith(subject.prefix) &&
     /(?:book\.json|map|نقشه|outline|فهرست)/i.test(item.path.split("/").pop() || "") &&
     /\.(?:json|md)$/i.test(item.path) && (item.size ?? 0) <= 100_000).slice(0, 3);
