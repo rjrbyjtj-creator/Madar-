@@ -128,7 +128,7 @@ const generatedExamSchema = z.object({
   duration: z.string().trim().min(1).max(40),
   totalScore: examPositiveNumber(100),
   questions: z.array(z.object({
-    number: examInteger(1, 18),
+    number: examInteger(1, 30),
     text: z.string().trim().min(1).max(2000),
     score: examPositiveNumber(100).refine((value) => Math.abs(value * 4 - Math.round(value * 4)) < 0.001, "بارم باید مضربی از ۰٫۲۵ باشد."),
     section: z.string().trim().max(80).optional(),
@@ -975,6 +975,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         if (sum <= 0) throw new Error("مجموع بارم سؤال‌ها باید بیشتر از صفر باشد.");
         const targetTotalScore = getRequestedExamTotalScore(latestUserMessage);
         const questions = validated.data.questions;
+        if (questions.length !== requestedExamQuestionCount) {
+          throw new Error("تعداد سؤال‌های خروجی " + questions.length + " است؛ درحالی‌که دقیقاً " + requestedExamQuestionCount + " سؤال درخواست شده بود.");
+        }
         const sequential = questions.every((question, index) => question.number === index + 1);
         if (!sequential) throw new Error("شماره سؤال‌ها باید از ۱ تا تعداد سؤال‌ها پیوسته و بدون تکرار باشد.");
         validateQuestionRubric(questions);
