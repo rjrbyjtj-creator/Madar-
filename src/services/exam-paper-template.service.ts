@@ -40,12 +40,12 @@ const faDigits = (value: unknown): string =>
 function renderQuestionText(value: string, languageMode = false): string {
   const source = String(value ?? "").replace(/`([^`\n]+)`/g, "$1");
   if (languageMode) {
-    return source.split(/\\r?\\n/).map((line) => {
+    return source.split(/\r?\n/).map((line) => {
       const trimmed = line.trim();
       if (!trimmed) return '<div class="language-spacer"></div>';
-      const isOption = /^(?:[A-Da-d][).:]|[A-Da-d]\\s+-)/.test(trimmed);
+      const isOption = /^(?:[A-Da-d][).:]|[A-Da-d]\s+-)/.test(trimmed);
       const latin = (trimmed.match(/[A-Za-z]/g) ?? []).length;
-      const letters = (trimmed.match(/[A-Za-z\\u0600-\\u06FF]/g) ?? []).length;
+      const letters = (trimmed.match(/[A-Za-z\u0600-\u06FF]/g) ?? []).length;
       const isEnglish = latin >= 3 && latin / Math.max(1, letters) >= 0.55;
       if (isOption) return '<div class="language-option" dir="ltr" lang="en">' + escapeHtml(trimmed) + '</div>';
       if (isEnglish) return '<div class="language-english-line" dir="ltr" lang="en">' + escapeHtml(trimmed) + '</div>';
