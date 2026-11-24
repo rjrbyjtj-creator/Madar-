@@ -11,7 +11,8 @@ test("renders a monochrome coordinate diagram with points and curve", () => {
   assert.match(svg, /^<svg[\s\S]*<\/svg>$/);
   assert.match(svg, /stroke="#111"/);
   assert.match(svg, />A<\/text>/);
-  assert.doesNotMatch(svg, /#[0-9a-f]{6}/i);
+  const colors = [...svg.matchAll(/(?:stroke|fill)="(#[0-9a-f]{3,6})"/gi)].map((m) => m[1]);
+  assert.deepEqual([...new Set(colors)].sort(), ["#111", "#d7d7d7"]);
 });
 
 test("renders vectors from a shared origin with arrow markers", () => {
