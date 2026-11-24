@@ -74,16 +74,18 @@ export function renderExamDiagram(input: unknown): string {
       !vectors.every((v) => v && finite(v.x) && finite(v.y) && typeof v.label === "string")) return "";
     const origin = spec.origin && finite((spec.origin as any).x) && finite((spec.origin as any).y)
       ? spec.origin as { x: number; y: number } : { x: 0, y: 0 };
-    const max = Math.max(1, ...vectors.flatMap((v: any) => [Math.abs(v.x), Math.abs(v.y)]));
-    const scale = 92 / max;
+    const extentX = Math.max(1, ...vectors.map((v: any) => Math.abs(v.x)));
+    const extentY = Math.max(1, ...vectors.map((v: any) => Math.abs(v.y)));
+    const scale = Math.min((W - PAD * 2 - 44) / (2 * extentX), (H - PAD * 2 - 44) / (2 * extentY));
     const ox = W / 2, oy = H / 2;
     let body = line(PAD, oy, W - PAD, oy, 1.4, guide) + line(ox, PAD, ox, H - PAD, 1.4, guide);
     body += '<defs><marker id="arr" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="none" stroke="' + ink + '" stroke-width="1"/></marker></defs>';
     for (const v of vectors as Array<{x:number;y:number;label:string}>) {
-      const x = ox + (v.x - origin.x) * scale, y = oy - (v.y - origin.y) * scale;
-      body += '<line x1="' + ox + '" y1="' + oy + '" x2="' + clamp(x, PAD, W-PAD) + '" y2="' + clamp(y, PAD, H-PAD) + '" stroke="' + ink + '" stroke-width="2.5" marker-end="url(#arr)"/>';
-      body += label(clamp(x + 10, PAD, W-PAD), clamp(y - 8, PAD+12, H-PAD), v.label, "start");
+      const x = ox + v.x * scale, y = oy - v.y * scale;
+      body += '<line x1="' + ox + '" y1="' + oy + '" x2="' + x + '" y2="' + y + '" stroke="' + ink + '" stroke-width="2.5" marker-end="url(#arr)"/>';
+      body += label(clamp(x + (v.x >= 0 ? 10 : -10), PAD, W-PAD), clamp(y - 8, PAD+12, H-PAD), v.label, v.x >= 0 ? "start" : "end");
     }
+    if (origin.x !== 0 || origin.y !== 0) body += label(ox - 8, oy + 17, "(" + origin.x + "," + origin.y + ")", "end");
     return shell(body);
   }
   if (spec.type === "geometry") {
@@ -91,25 +93,30 @@ export function renderExamDiagram(input: unknown): string {
     const points = spec.points as DiagramPoint[];
     const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
     const xMin = Math.min(...xs), xMax = Math.max(...xs), yMin = Math.min(...ys), yMax = Math.max(...ys);
-    const bounds = { xMin: xMin === xMax ? xMin - 1 : xMin, xMax: xMin === xMax ? xMax + 1 : xMax, yMin: yMin === yMax ? yMin - 1 : yMin, yMax: yMin === yMax ? yMax + 1 : yMax };
+    const rawWidth = xMax - xMin || 1, rawHeight = yMax - yMin || 1;
+    const scale = Math.min((W - PAD * 2 - 28) / rawWidth, (H - PAD * 2 - 28) / rawHeight);
+    const centerX = (xMin + xMax) / 2, centerY = (yMin + yMax) / 2;
+    const project = (p: DiagramPoint) => ({
+      x: W / 2 + (p.x - centerX) * scale,
+      y: H / 2 - (p.y - centerY) * scale,
+    });
     let body = "";
     for (const edge of spec.edges as unknown[]) {
       if (!Array.isArray(edge) || edge.length !== 2 || !edge.every((n) => Number.isInteger(n) && n >= 0 && n < points.length)) continue;
-      const a = mapPoint(points[edge[0] as number], bounds), b = mapPoint(points[edge[1] as number], bounds);
+      const a = project(points[edge[0] as number]), b = project(points[edge[1] as number]);
       body += line(a.x, a.y, b.x, b.y, 2.4);
     }
     for (const p of points) {
-      const q = mapPoint(p, bounds);
+      const q = project(p);
       body += '<circle cx="' + q.x + '" cy="' + q.y + '" r="3" fill="' + ink + '"/>';
-      if (p.label) body += label(q.x + 8, q.y - 8, p.label, "start");
+      if (p.label) body += label(clamp(q.x + 8, PAD, W-PAD), clamp(q.y - 8, PAD+12, H-PAD), p.label, "start");
     }
     if (Array.isArray(spec.circles)) for (const c of spec.circles.slice(0, 8)) {
       if (!c || ![c.cx,c.cy,c.r].every(finite) || c.r <= 0) continue;
-      const center = mapPoint({x:c.cx,y:c.cy}, bounds);
-      const rx = c.r / (bounds.xMax-bounds.xMin) * (W-PAD*2);
-      const ry = c.r / (bounds.yMax-bounds.yMin) * (H-PAD*2);
-      body += '<ellipse cx="' + center.x + '" cy="' + center.y + '" rx="' + Math.abs(rx) + '" ry="' + Math.abs(ry) + '" fill="none" stroke="' + ink + '" stroke-width="2"/>';
-      if (c.label) body += label(center.x, center.y - Math.abs(ry) - 6, c.label);
+      const center = project({x:c.cx,y:c.cy});
+      const radius = c.r * scale;
+      body += '<circle cx="' + center.x + '" cy="' + center.y + '" r="' + radius + '" fill="none" stroke="' + ink + '" stroke-width="2"/>';
+      if (c.label) body += label(center.x, clamp(center.y - radius - 6, PAD+12, H-PAD), c.label);
     }
     return shell(body);
   }
