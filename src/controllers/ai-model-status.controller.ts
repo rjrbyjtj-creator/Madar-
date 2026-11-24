@@ -53,9 +53,9 @@ async function inspectProvider(input: {
 
 export async function getAIModelStatus(_req: Request, res: Response): Promise<void> {
   const checks = await Promise.all([
-    inspectProvider({ id: "gemini", name: "Google Gemini", configured: Boolean(env.GEMINI_API_KEY), models: GEMINI_MODEL_IDS, check: async () => {
+    inspectProvider({ id: "gemini", name: "Google Gemini", configured: Boolean([env.GEMINI_API_KEY, env.GEMINI_API_KEY_2, env.GEMINI_API_KEY_3, env.GEMINI_API_KEY_4, env.GEMINI_API_KEY_5].some((key) => key.trim())), models: GEMINI_MODEL_IDS, check: async () => {
       const url = new URL("https://generativelanguage.googleapis.com/v1beta/models");
-      url.searchParams.set("pageSize", "1"); url.searchParams.set("key", env.GEMINI_API_KEY);
+      url.searchParams.set("pageSize", "1"); url.searchParams.set("key", [env.GEMINI_API_KEY, env.GEMINI_API_KEY_2, env.GEMINI_API_KEY_3, env.GEMINI_API_KEY_4, env.GEMINI_API_KEY_5].find((key) => key.trim()) ?? "");
       const result = await probe(url.toString());
       return { ...result, quota: quotaHeaders(result.response.headers) };
     }}),
