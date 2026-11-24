@@ -73,7 +73,11 @@ export async function uploadGeminiFile(buffer: Buffer, fileName: string, mimeTyp
     throw new AppError(503, "AI_NOT_CONFIGURED", "سرویس هوش مصنوعی هنوز روی سرور تنظیم نشده است.");
   }
   try {
-    const ai = createAI(60_000);
+    // Gemini Files API objects belong to the Google Cloud project that uploaded them.
+    // Always upload with the primary configured key so subsequent file requests use the same project.
+    const fileApiKey = getGeminiApiKeys()[0];
+    if (!fileApiKey) throw new AppError(503, "AI_NOT_CONFIGURED", "هیچ کلید Gemini روی سرور تنظیم نشده است.");
+    const ai = createAI(60_000, fileApiKey);
     let file = await ai.files.upload({
       file: new Blob([new Uint8Array(buffer)], { type: mimeType }),
       config: { mimeType, displayName: fileName },
@@ -253,13 +257,14 @@ export async function generateGeminiReply(
     userId?: mongoose.Types.ObjectId;
     localDate?: string;
     studentProfileContext?: string;
+    requestDeadlineMs?: number;
   },
   selectedModel?: (typeof GEMINI_MODEL_IDS)[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   if (selectedModel && !GEMINI_MODEL_IDS.includes(selectedModel)) {
     throw new AppError(400, "INVALID_GEMINI_MODEL", "مدل انتخاب‌شده Gemini معتبر نیست.");
   }
-  if (!env.GEMINI_API_KEY) {
+  if (!getGeminiApiKeys().length) {
     throw new AppError(
       503,
       "AI_NOT_CONFIGURED",
@@ -358,16 +363,25 @@ export async function generateGeminiReply(
   let lastStatus = 502;
   let lastFinishReason: string | undefined;
 
-  const apiKeys = getGeminiApiKeys();
+  const hasAttachedFiles = window.some((message) => message.attachments?.length);
+  // File URIs are scoped to the Google Cloud project that uploaded them.
+  // Requests carrying files must stay on the primary key; text-only chats can rotate keys.
+  const apiKeys = hasAttachedFiles ? getGeminiApiKeys().slice(0, 1) : getGeminiApiKeys();
   for (const { model, timeoutMs } of attempts) {
     for (let keyAttempt = 0; keyAttempt < apiKeys.length; keyAttempt += 1) {
+    const remainingMs = student.requestDeadlineMs ? student.requestDeadlineMs - Date.now() : timeoutMs;
+    if (remainingMs <= 0) {
+      lastStatus = 504;
+      break;
+    }
+    const attemptTimeoutMs = Math.max(1_000, Math.min(timeoutMs, remainingMs));
     const apiKey = apiKeys[(nextGeminiKeyIndex + keyAttempt) % apiKeys.length];
     const started = Date.now();
     console.info("[AI] Gemini request started:", model, "keySlot=", ((nextGeminiKeyIndex + keyAttempt) % apiKeys.length) + 1, "timeout=", timeoutMs);
     try {
       const { text, finishReason, blocked, planProposal, planDeletionProposal } = await callModel(
         model,
-        timeoutMs,
+        attemptTimeoutMs,
         contents,
         systemInstruction,
         student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 0.25 : 0.6,
