@@ -1,6 +1,7 @@
 import express, { Router } from "express";
 import {
   chatWithAI,
+  getAIJob,
   uploadChatDocument,
   getChatAttachment,
   deleteConversation,
@@ -23,6 +24,7 @@ aiRouter.get("/conversations/shared/:token", getSharedConversation);
 aiRouter.get("/model-status", requireAuth, getAIModelStatus);
 aiRouter.get("/coarena/models", requireAuth, getCoarenaModels);
 aiRouter.get("/attachments/:id", requireAuth, getChatAttachment);
+aiRouter.get("/jobs/:id", requireAuth, getAIJob);
 aiRouter.get("/conversations", requireAuth, listConversations);
 aiRouter.get("/conversations/:id", requireAuth, getConversation);
 aiRouter.delete("/conversations/:id", requireAuth, deleteConversation);
