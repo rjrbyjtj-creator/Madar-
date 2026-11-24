@@ -813,6 +813,15 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   // Only previous user turns may carry exam intent forward; assistant prose must not activate exam generation.
   const examIntentContext = history.filter((item) => item.role === "user").slice(-6).map((item) => item.content).join("\n");
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
+  const examReferenceFollowup = examGenerationMode &&
+    latestUserMessage.length <= 180 &&
+    /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو|با\s*همین\s*(?:شرایط|مشخصات)).{0,60}(?:بساز|طراحی|تهیه|آماده|درست\s*کن)/i.test(normalizeExamIntentText(latestUserMessage));
+  const previousExamRequest = examReferenceFollowup
+    ? [...history].reverse().find((item) => item.role === "user" && /(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال|سوالات?|سؤالات?)/i.test(normalizeExamIntentText(item.content)))?.content
+    : undefined;
+  const examPromptMessage = previousExamRequest
+    ? "درخواست اصلی آزمون و محدودیت‌های آن:\n" + previousExamRequest + "\n\nپیام تکمیلی فعلی دانش‌آموز:\n" + latestUserMessage
+    : latestUserMessage;
   const requestedExamQuestionCount = getRequestedExamQuestionCount(latestUserMessage, examIntentContext);
   // Start one shared budget before loading/indexing/uploading exam sources.
   const examRequestDeadlineMs = examGenerationMode ? Date.now() + 9 * 60_000 : undefined;
@@ -843,7 +852,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   }
 
   const examBankContext = examGenerationMode ? await (async () => {
-    const normalized = normalizeExamIntentText(latestUserMessage);
+    const normalized = normalizeExamIntentText(examPromptMessage);
     const grade = /(?:پایه\s*)?(?:دهم|10|۱۰)/.test(normalized) ? "10"
       : /(?:پایه\s*)?(?:یازدهم|11|۱۱)/.test(normalized) ? "11"
       : /(?:پایه\s*)?(?:دوازدهم|12|۱۲)/.test(normalized) ? "12" : undefined;
@@ -854,13 +863,13 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ["دین و زندگی", ["دینی", "دین و زندگی"]],
     ];
     const subject = subjectAliases.find(([, aliases]) => aliases.some(alias => normalized.includes(alias)))?.[0];
-    return retrieveQuestionBankContext({ message: latestUserMessage, subject, grade, limit: 12 });
+    return retrieveQuestionBankContext({ message: examPromptMessage, subject, grade, limit: 12 });
   })() : "";
 
   const studyFilesContext = isStudyFilesRequest(latestUserMessage)
     ? await buildStudyFilesContext()
     : undefined;
-  const textbookContext = await retrieveTextbookContext(latestUserMessage, history.slice(-6).map((item) => item.content).join("\n"));
+  const textbookContext = await retrieveTextbookContext(examPromptMessage, history.slice(-6).map((item) => item.content).join("\n"));
   const examKnowledgeContext = examGenerationMode && textbookContext ? textbookContext.slice(0, 7000) : textbookContext;
   const availableFilesContext = [studyFilesContext, examKnowledgeContext, examBankContext].filter(Boolean).join("\n\n") || undefined;
   const plannerContext = plannerRelevant
@@ -901,7 +910,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   let examSourceLibraryError = "";
   if (examGenerationMode) {
     try {
-      examSourceLibrary = await getExamSourceLibrary(latestUserMessage + "\n" + recentConversationContext, selectedProvider === "gemini");
+      examSourceLibrary = await getExamSourceLibrary(examPromptMessage + "\n" + recentConversationContext, selectedProvider === "gemini");
       console.info("[EXAM_PIPELINE] repository sources ready", {
         subject: examSourceLibrary.subject,
         bookPdfs: examSourceLibrary.bookAttachments.length,
@@ -933,7 +942,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     {
       role: "user",
       content: [
-        latestUserMessage,
+        examPromptMessage,
         parsed.data.screenFrame ? "[تصویر صفحه‌ای که کاربر همین حالا به اشتراک گذاشته پیوست شده است؛ محتوای قابل مشاهده را بررسی کن.]" : "",
         textbookPdfAttachment ? "[PDF اصلی کتاب درسی نیز پیوست شده است. برای شکل‌ها، نمودارها، جدول‌ها و ساختارهای مولکولی، فقط صفحه و محدوده مرتبط با درخواست دانش‌آموز را در خود PDF بررسی کن و شماره صفحه چاپی را با شماره PDF اشتباه نگیر.]" : "",
         examSourceLibrary ? (selectedProvider === "gemini"
@@ -952,7 +961,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     },
   ];
   const examSourceAvailable = Boolean(examSourceLibrary?.hasBookPdfs && examSourceLibrary?.hasQuestionBankPdfs) || conversationDocuments.length > 0;
-  const explicitlyNamedSource = /(از\s*(کتاب|جزوه|فایل)\s*[:«"“]?\s*[^،؛.]{2,}|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه)|فایل\s*پیوست)/i.test(normalizeExamIntentText(latestUserMessage));
+  const explicitlyNamedSource = /(از\s*(کتاب|جزوه|فایل)\s*[:«"“]?\s*[^،؛.]{2,}|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه)|فایل\s*پیوست)/i.test(normalizeExamIntentText(examPromptMessage));
   // Generic exam requests must still produce a paper from the student's grade/subject context.
   // Ask for a file only when the user explicitly requires a particular source that is unavailable.
   const examSourceMissing = examGenerationMode && explicitlyNamedSource && !examSourceAvailable;
@@ -1054,7 +1063,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         }
         const sum = validated.data.questions.reduce((total, question) => total + question.score, 0);
         if (sum <= 0) throw new Error("مجموع بارم سؤال‌ها باید بیشتر از صفر باشد.");
-        const targetTotalScore = getRequestedExamTotalScore(latestUserMessage);
+        const targetTotalScore = getRequestedExamTotalScore(latestUserMessage, examIntentContext);
         const questions = validated.data.questions;
         if (questions.length !== requestedExamQuestionCount) {
           throw new Error("تعداد سؤال‌های خروجی " + questions.length + " است؛ درحالی‌که دقیقاً " + requestedExamQuestionCount + " سؤال درخواست شده بود.");
