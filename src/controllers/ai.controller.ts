@@ -18,6 +18,7 @@ import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/hug
 import { generateCoarenaReply } from "../services/coarena.service.js";
 import { getTextbookPdfAttachment, retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
 import { renderExamPaperHtml } from "../services/exam-paper-template.service.js";
+import type { ExamDiagramSpec } from "../services/exam-diagram.service.js";
 import { retrieveQuestionBankContext } from "../services/question-bank-store.service.js";
 import { getExamSourceLibrary } from "../services/exam-source-library.service.js";
 
@@ -135,6 +136,12 @@ const examInteger = (min: number, max: number) =>
 const examPositiveNumber = (max: number) =>
   z.preprocess(normalizeExamNumber, z.number().positive().max(max));
 
+const diagramPointSchema = z.object({ x: z.number().finite().min(-100000).max(100000), y: z.number().finite().min(-100000).max(100000), label: z.string().trim().max(16).optional() });
+const examDiagramSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("coordinate"), xMin: z.number().finite(), xMax: z.number().finite(), yMin: z.number().finite(), yMax: z.number().finite(), points: z.array(diagramPointSchema).max(40).optional(), curve: z.array(diagramPointSchema).max(80).optional(), xLabel: z.string().max(12).optional(), yLabel: z.string().max(12).optional() }),
+  z.object({ type: z.literal("vectors"), origin: z.object({ x: z.number().finite(), y: z.number().finite() }).optional(), vectors: z.array(z.object({ x: z.number().finite(), y: z.number().finite(), label: z.string().trim().min(1).max(16) })).min(1).max(8) }),
+  z.object({ type: z.literal("geometry"), points: z.array(diagramPointSchema).min(2).max(40), edges: z.array(z.tuple([z.number().int().min(0).max(39), z.number().int().min(0).max(39)])).max(40), circles: z.array(z.object({ cx: z.number().finite(), cy: z.number().finite(), r: z.number().positive().finite(), label: z.string().max(16).optional() })).max(8).optional() }),
+]);
 const generatedExamSchema = z.object({
   examTitle: z.string().trim().min(1).max(120),
   subject: z.string().trim().min(1).max(80),
@@ -154,6 +161,7 @@ const generatedExamSchema = z.object({
         : normalized;
     }, z.number().int().min(1).max(8)).optional(),
     figureSvg: z.string().max(16000).optional(),
+    figureSpec: examDiagramSchema.optional(),
     figureAlt: z.string().trim().max(180).optional(),
   })).min(1).max(30),
 });
@@ -1099,11 +1107,11 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       'ساختار دقیق: {"examTitle":string,"subject":string,"grade":string,"field":string,"duration":string,"totalScore":number,"questions":[{"number":number,"text":string,"score":number,"section":string,"answerLines":number,"figureSvg":string,"figureAlt":string}]}',
       "تعداد سؤال‌های اصلی باید دقیقاً مطابق تعداد صریحاً درخواستی دانش‌آموز باشد؛ اگر تعداد ذکر نشده، پیش‌فرض ۱۲ سؤال است. هیچ محدودیت ثابت ۱۲ تا ۱۸ سؤال اعمال نکن. بارم هر سؤال اصلی برابر مجموع بارم زیربخش‌های آن باشد و جمع کل دقیقاً برابر totalScore باشد.",
       "نام درس، پایه، رشته، فصل و محدوده‌ای را که کاربر گفته دقیق رعایت کن. صورت هر سؤال باید کامل، روشن، مستقل و قابل پاسخ باشد. پاسخ یا راه‌حل را داخل برگه ننویس. برای هر سؤال ۲ تا ۴ خط پاسخ پیشنهاد بده. واحدها را به زبان طبیعی و خوانا بنویس (مثلاً «۵ کیلوگرم»)، نه به شکل کد. اگر نماد یا فرمول لازم است از TeX درون‌خطی با delimiters استاندارد \\( ... \\) استفاده کن؛ مثلاً \\(5\\,\\mathrm{kg}\\). هرگز فرمول را داخل backticks یا code fence نگذار و هیچ قطعه کدی تولید نکن.",
-      "برای طراحی شکل و نمودار از ابزار ترسیم برداری داخلی بر پایه SVG استفاده کن؛ SVG ابزار رسم توست، نه تصویر تزئینی. هرجا شکل برای حل یا فهم سؤال لازم است (هندسه، فیزیک، شیمی، زیست، مدار، نیروها، نمودارها، محور مختصات، جدول تصویری، آرایش ذرات و ...)، شکل دقیق را مستقیماً در figureSvg همان سؤال بساز و برایش figureAlt کوتاه بنویس. شکل باید فقط اطلاعات لازم برای همان سؤال را نشان دهد و تمام اندازه‌ها، زاویه‌ها، جهت پیکان‌ها، نسبت‌ها، برچسب‌ها و نقاط باید با متن و داده‌های سؤال کاملاً سازگار باشند. هیچ داده، نقطه، خط کمکی یا برچسب بی‌پشتوانه اضافه نکن.",
-      "استاندارد ترسیم: SVG کامل با viewBox=\"0 0 480 280\" و نسبت تصویر نزدیک 12:7 تولید کن؛ مختصات را منظم و متناسب انتخاب کن، فضای خالی اضافه نگذار و همه اجزا را داخل کادر نگه دار. فقط از عناصر svg/g/line/path/rect/circle/ellipse/polygon/polyline/text/tspan/defs/marker استفاده کن. فقط از مشکی (#111 یا #000)، سفید و خاکستری خیلی روشن برای پس‌زمینه یا خطوط کمکی استفاده کن؛ هیچ رنگ اشباع، گرادیان، سایه، افکت سه‌بعدی یا تزئین غیرضروری به کار نبر. خطوط اصلی واضح و یکنواخت (حدود 2 تا 3 واحد)، خطوط کمکی نازک‌تر و برچسب‌ها خوانا باشند. برای فلش‌ها از marker ساده استفاده کن و جهت فلش را دقیق رعایت کن.",
+      "هرجا شکل یا نمودار لازم است، به‌جای SVG خام از figureSpec ساختاریافته استفاده کن. نوع coordinate برای نمودار و محور مختصات است و xMin/xMax/yMin/yMax و در صورت نیاز points یا curve و xLabel/yLabel دارد. نوع vectors برای بردارها و نیروهاست و vectors شامل x و y و label هر بردار است؛ origin اختیاری است. نوع geometry برای شکل هندسی است و points آرایه نقاط دارای x/y/label و edges آرایه جفت اندیس نقاط است؛ circles اختیاری است. فقط از داده‌های صریح سؤال استفاده کن و مختصات یا مقادیر را حدس نزن. برای شکل‌های خاصی که این سه نوع پوشش نمی‌دهند، از figureSvg معتبر استفاده کن. figureAlt را کوتاه و دقیق بنویس.",
+      "موتور ترسیم سرور شکل را با خروجی SVG ثابت 480×280، تک‌رنگ مشکی و خطوط کمکی خاکستری بسیار روشن می‌سازد. شکل باید کوچک و خوانا داخل باکس سؤال باشد؛ مختصات، جهت بردارها، مقیاس و اتصالات هندسی باید دقیقاً از داده‌های صورت سؤال استخراج شوند.",
       "قواعد هندسی: در شکل هندسه، رأس‌ها و نقاط را با حروف استاندارد و یکتا برچسب بزن؛ اگر شکل شماتیک است، نسبت‌ها را طوری نکش که با داده عددی تناقض پیدا کند. در نمودار، محورهای x و y، مبدأ در صورت نیاز، مقیاس، واحدها، نقاط داده و نام منحنی را فقط در صورت ارائه‌شدن یا لازم‌بودن مشخص کن؛ مختصات نقاط را دقیقاً از داده سؤال بگیر و منحنی را با مسیر SVG مناسب رسم کن. در فیزیک، بردارها و نیروها را با مبدأ، جهت، نام و محل اثر درست نشان بده؛ سطح، قرقره، نخ، جسم و زاویه‌ها را واضح و بدون تقاطع مبهم رسم کن. در شیمی، نماد اتم‌ها، پیوندها، بارها و نسبت ذرات را دقیق نمایش بده.",
       "اندازه و جایگاه شکل در برگه: شکل‌ها نباید تمام عرض سؤال یا صفحه را اشغال کنند. شکل را به‌صورت دیاگرام جمع‌وجور و افقی، مناسب قرارگیری در گوشه سمت چپ باکس سؤال طراحی کن؛ اندازه نمایش نهایی در قالب حدود ۱۵۰ در ۱۰۰ پیکسل (در چاپ حدود ۳۹ در ۲۶ میلی‌متر) است، پس متن و جزئیات را برای همین ابعاد طراحی کن. از نوشته‌های ریز، نمودارهای عریض، حاشیه سفید زیاد و خطوط اضافی پرهیز کن. اگر شکل برای نمایش دقیق در این ابعاد پیچیده است، آن را ساده و خوانا کن یا سؤال را به شکلی تغییر بده که شکل کوچک‌تر و دقیق کافی باشد؛ هرگز شکل بزرگ و تمام‌صفحه نساز.",
-      "figureSvg را فقط برای سؤال‌هایی تولید کن که واقعاً به شکل نیاز دارند؛ برای سؤال‌های بدون شکل این فیلدها را حذف کن. SVG باید معتبر و بسته‌شده باشد و هیچ script، foreignObject، image، لینک، CSS، رویداد، فونت خارجی یا کد دیگری نداشته باشد. پیش از خروجی، شکل را با صورت سؤال تطبیق بده و صحت هندسی، جهت‌ها، برچسب‌ها، مقیاس و داده‌ها را دوباره بررسی کن.",
+      "figureSpec یا figureSvg را فقط برای سؤال‌هایی تولید کن که واقعاً به شکل نیاز دارند؛ برای سؤال‌های بدون شکل این فیلدها را حذف کن. پیش از خروجی، صحت هندسی، جهت‌ها، برچسب‌ها، مقیاس و داده‌ها را با متن سؤال تطبیق بده.",
       "اگر availableFilesContext منبع بازیابی‌شده مرتبط دارد، سؤال‌ها را بر پایه همان منبع طراحی کن و جزئیات خارج از آن را به‌عنوان محتوای کتاب معرفی نکن. اگر منبعی بازیابی نشده، ادعا نکن کتاب یا بانک نمونه‌سؤال را بررسی کرده‌ای؛ فقط از دانش آموزشی معتبر خودت سؤال بساز.",
       "عنوان بخش یا سرفصل آماده و از پیش‌تعیین‌شده اضافه نکن؛ فقط اگر کاربر بخش‌بندی خواست یا برای فهم سؤال ضروری بود، section بده. در غیر این صورت section را حذف کن. در صورت وجود منبع، پوشش متوازن مباحث، تنوع تیپ سؤال و دشواری تدریجی را رعایت کن. سؤال‌ها را عیناً از نمونه‌سؤال‌ها کپی نکن.",
       "تا حد امکان هیچ سؤال روشن‌کننده‌ای نپرس. درس، پایه، رشته و مبحث را ابتدا از پیام فعلی، تاریخچه گفتگو، پیوست‌ها و پروفایل دانش‌آموز استخراج کن. اگر فقط مبحث مشخص نیست، از مباحث رایج و متناسب با پایه/رشته یک آزمون استاندارد و متوازن بساز. اگر درس هم مشخص نیست، برای دانش‌آموز از دروس اصلی پایه و رشته خودش یک برگه ترکیبی بساز؛ اگر پایه/رشته هم در دسترس نیست، یک برگه عمومی در سطح متوسط بساز و فرض‌های انتخابی را در عنوان آزمون منعکس کن. فقط وقتی منبع مشخصی را صریحاً خواسته و آن منبع واقعاً در دسترس نیست، clarification برگردان."
