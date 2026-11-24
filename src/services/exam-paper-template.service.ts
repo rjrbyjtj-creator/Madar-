@@ -94,6 +94,8 @@ function sanitizeQuestionSvg(value: string): string {
       let attrValue = attr[2] ?? attr[3] ?? "";
       if (![...allowedSvgAttributes].some((item) => item.toLowerCase() === normalizedName)) continue;
       if (normalizedName === "xmlns" && attrValue !== "http://www.w3.org/2000/svg") continue;
+      if (normalizedName === "stroke" && attrValue.toLowerCase() !== "none") attrValue = "#111";
+      if (normalizedName === "fill" && attrValue.toLowerCase() !== "none") attrValue = "#111";
       if (["marker-start", "marker-mid", "marker-end"].includes(normalizedName) && !/^url\(#[a-zA-Z0-9_-]+\)$/.test(attrValue)) continue;
       if (/url\s*\(|javascript:|data:|https?:|\\/i.test(attrValue) && !["marker-start", "marker-mid", "marker-end"].includes(normalizedName)) continue;
       attrs.push(`${name}="${escapeHtml(attrValue)}"`);
@@ -152,9 +154,10 @@ function renderQuestionBlocks(questions: ExamPaperQuestion[], languageMode = fal
       ? '<figure class="question-figure">' + figureSvg +
         (question.figureAlt ? '<figcaption>' + escapeHtml(question.figureAlt) + "</figcaption>" : "") + "</figure>"
       : "";
+    const questionContentClass = figureMarkup ? "question-content has-figure" : "question-content";
     return sectionMarkup + '\n<div class="q">' +
       '<div class="n"></div>' +
-      '<div><div class="qt">' + renderQuestionText(question.text, languageMode) + "</div>" + figureMarkup + answerLines + "</div>" +
+      '<div><div class="' + questionContentClass + '"><div class="qt">' + renderQuestionText(question.text, languageMode) + "</div>" + figureMarkup + "</div>" + answerLines + "</div>" +
       '<div class="b"><span class="bv">' + escapeHtml(faDigits(question.score)) + "</span></div>" +
       "</div>";
   }).join("\n");
