@@ -57,15 +57,15 @@ function normalizeExamIntentText(value: string): string {
 function isExamGenerationRequest(message: string, conversationContext = ""): boolean {
   const current = normalizeExamIntentText(message);
   const combined = normalizeExamIntentText(message + " " + conversationContext);
-  const hasExamIntent = /(آزمون|امتحان|نمونه\s*سوال|نمونه\s*سؤال|آزمونک|کوییز|کوئیز|quiz|برگه\s*امتحان)/i.test(combined);
-  if (!hasExamIntent) return false;
-
-  const hasCreationIntent = /(طراحی|طرح|بساز|ساخت|تهیه|آماده|تولید|درست\s*کن|ایجاد|برام\s*بساز|برام\s*طراحی|فایل\s*(کن|بده|بساز)|خروجی\s*بگیر)/i.test(current);
+  const hasExamArtifact = /(آزمون|امتحان|نمونه\s*سوال|نمونه\s*سؤال|آزمونک|کوییز|کوئیز|quiz|برگه\s*امتحان|سوالات?\s*(?:تشریحی|تستی|چهارگزینه.?ای)|برگه\s*(?:سوال|سؤال))/i.test(combined);
+  const hasQuestionArtifact = /(سوال|سؤال|پرسش)/i.test(current);
+  const hasCreationIntent = /(طراحی|طرح|بساز|ساخت|تهیه|آماده|تولید|درست\s*کن|ایجاد|برام|واسم|تهیه\s*کن|فایل\s*(کن|بده|بساز)|خروجی\s*بگیر|بده)/i.test(current);
   const hasExamScope = /(از\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه)|برای\s*(فصل|مبحث|درس))/i.test(current);
-  const isExamFollowup = /(همون|همان|حالا|خب|پس|این\s*رو|اونو|همین).{0,35}(بساز|طراحی|تهیه|آماده|فایل|درست\s*کن)/i.test(current) &&
-    /(آزمون|امتحان|سوال|سؤال)/i.test(normalizeExamIntentText(conversationContext));
-
-  return hasCreationIntent || hasExamScope || isExamFollowup;
+  const isExamFollowup = /(همون|همان|حالا|خب|پس|این\s*رو|اونو|همین).{0,45}(بساز|طراحی|تهیه|آماده|فایل|درست\s*کن|بده)/i.test(current) &&
+    /(آزمون|امتحان|سوال|سؤال|برگه)/i.test(normalizeExamIntentText(conversationContext));
+  const directPaperRequest = /(برگه\s*(?:امتحان|آزمون|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|آزمونک|امتحان\s*(?:تشریحی|تستی)?)/i.test(current);
+  return (hasExamArtifact && (hasCreationIntent || hasExamScope || isExamFollowup || directPaperRequest)) ||
+    (hasQuestionArtifact && hasCreationIntent && /(از\s*(فصل|مبحث|درس|کتاب)|امتحان|آزمون|برگه)/i.test(combined));
 }
 function getRequestedExamTotalScore(message: string): number {
   const normalized = normalizeExamIntentText(message)
@@ -839,7 +839,10 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     },
   ];
   const examSourceAvailable = Boolean(examSourceLibrary?.bookAttachments.length && examSourceLibrary?.bankAttachments.length) || conversationDocuments.length > 0;
-  const examSourceMissing = examGenerationMode && !examSourceAvailable;
+  const explicitlyNamedSource = /(از\s*(کتاب|جزوه|فایل)\s*[:«"“]?\s*[^،؛.]{2,}|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه)|فایل\s*پیوست)/i.test(normalizeExamIntentText(latestUserMessage));
+  // Generic exam requests must still produce a paper from the student's grade/subject context.
+  // Ask for a file only when the user explicitly requires a particular source that is unavailable.
+  const examSourceMissing = examGenerationMode && explicitlyNamedSource && !examSourceAvailable;
   const examSourceClarification = examSourceLibraryError.includes("TEXTBOOK_PERMISSION_NOT_VERIFIED")
     ? "در فراداده کتابخانه، مجوز پردازش PDF کتاب این درس هنوز تأیید نشده است. قبل از ارسال کتاب به سرویس هوش مصنوعی، لطفاً وضعیت مجوز را بررسی و تأیید کن؛ تا آن زمان از محتوای آن PDF استفاده نمی‌کنم."
     : "برای طراحی آزمون استاندارد، PDF کتاب درسی و PDF بانک سؤال این درس باید در پوشه همان درس در Robo-Knowledge موجود باشند. فعلاً یکی از منابع پیدا نشد؛ لطفاً پوشه و نام فایل‌ها را بررسی کن."
@@ -902,7 +905,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
             ? selectedProvider === "gemini"
               ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, selectedGeminiModelId)
               : { text: JSON.stringify({ clarification: "برای تحلیل PDF پیوست‌شده در همین گفتگو، فعلاً باید Gemini را انتخاب کنی. برای استفاده از مدل‌های دیگر، فایل کتاب و بانک سؤال باید در کتابخانه متنیِ قابل بازیابی مدار موجود باشند." }) }
-            : { text: JSON.stringify({ clarification: "برای طراحی آزمون استاندارد، PDF کتاب درسی و PDF بانک سؤال این درس باید در پوشه کتابخانه Robo-Knowledge موجود باشند. فعلاً یکی از این دو منبع پیدا نشد؛ لطفاً پوشه و نام فایل‌ها را بررسی کن." }) }
+            : await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"))
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
