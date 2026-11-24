@@ -188,8 +188,12 @@ export async function generateGroqReply(
       }
 
       const data = await response.json() as {
-        choices?: Array<{ message?: { content?: string | null; tool_calls?: GroqToolCall[] } }>;
+        choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: GroqToolCall[] } }>;
       };
+      const finishReason = data.choices?.[0]?.finish_reason;
+      if (finishReason === "length") {
+        throw new AppError(502, "GROQ_MAX_TOKENS", "خروجی مدل Groq به سقف توکن رسید و ناقص ماند. محدوده آزمون را کوتاه‌تر کن یا آن را در دو بخش بساز.");
+      }
       const message = data.choices?.[0]?.message;
       const calls = message?.tool_calls ?? [];
       if (!calls.length) {
