@@ -34,8 +34,10 @@ type KnowledgeChunk = {
 };
 
 type Cache = { expiresAt: number; chunks: KnowledgeChunk[] };
-let cache: Cache | undefined;
-let refreshPromise: Promise<KnowledgeChunk[]> | undefined;
+type BookSubject = "chemistry" | "physics" | "geometry" | "english";
+const cache = new Map<string, Cache>();
+const refreshPromises = new Map<string, Promise<KnowledgeChunk[]>>();
+const refreshFailureUntil = new Map<string, number>();
 
 const STOP_WORDS = new Set([
   "برای", "این", "آن", "است", "هست", "شود", "شده", "چگونه", "چیست", "چرا",
@@ -134,8 +136,14 @@ function chunkMatchesSubject(chunk: KnowledgeChunk, subject: "chemistry" | "phys
   return /english|زبان|انگلیسی/.test(path);
 }
 
-function isRelevantRequest(question: string): boolean {
-  return /(کتاب|کتاب.?های|منبع|منابع|جزوه|درس|فصل|صفحه|مبحث|سرفصل|تست|تستی|چهارگزینه|تشریحی|آزمون|امتحان|سوال|سؤال|پاسخ|حل کن|توضیح بده|یاد بگیر|یادگیری|فیزیک|شیمی|زیست|ریاضی|عربی|ادبیات|انگلیسی)/i.test(question);
+function isRelevantRequest(question: string, conversationContext = ""): boolean {
+  const current = normalize(question);
+  const combined = normalize(question + " " + conversationContext);
+  const subject = detectBookSubject(combined);
+  if (!subject) return /صفحه/.test(current) && /(?:کتاب|صفحه|بخوان|بگو|توضیح)/.test(current);
+  // Require a learning action or a textbook scope cue in the current turn.
+  // A previous assistant answer mentioning a subject is not enough by itself.
+  return /(?:کتاب|منبع|جزوه|درس|فصل|صفحه|مبحث|سرفصل|تست|تستی|چهارگزینه|تشریحی|آزمون|امتحان|سوال|سؤال|پاسخ|حل\s*کن|توضیح|یادگیری|بخوان|بخون)/i.test(current);
 }
 
 function titleFromPath(path: string): string {
@@ -277,19 +285,37 @@ async function githubRequest<T>(url: string): Promise<T> {
   return await response.json() as T;
 }
 
-async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
-  if (cache && cache.expiresAt > Date.now()) return cache.chunks;
-  if (refreshPromise) return refreshPromise;
+async function loadKnowledgeChunks(subject?: BookSubject): Promise<KnowledgeChunk[]> {
+  const cacheKey = subject ?? "all";
+  const now = Date.now();
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.chunks;
 
-  refreshPromise = (async () => {
+  const inFlight = refreshPromises.get(cacheKey);
+  if (inFlight) return cached?.chunks ?? inFlight;
+
+  if ((refreshFailureUntil.get(cacheKey) ?? 0) > now) {
+    if (cached) return cached.chunks;
+    throw new Error("Knowledge repository refresh is temporarily paused after a recent failure");
+  }
+
+  const subjectPrefixes: Record<BookSubject, string> = {
+    chemistry: "textbooks/chemistry-3-grade-12-experimental-math-1405/",
+    physics: "textbooks/physics-3-grade-12-math/",
+    geometry: "textbooks/geometry/",
+    english: "textbooks/english/",
+  };
+
+  const refresh = (async () => {
     const treeUrl = API_BASE + "/repos/" + OWNER + "/" + REPOSITORY +
       "/git/trees/" + encodeURIComponent(BRANCH) + "?recursive=1";
     const tree = await githubRequest<{ truncated?: boolean; tree: Array<{ path: string; type: string; size?: number; sha?: string }> }>(treeUrl);
     if (tree.truncated) throw new Error("Knowledge repository tree is truncated; split the library into smaller repositories or folders");
 
+    const selectedPrefix = subject ? subjectPrefixes[subject] : "";
     const paths = tree.tree
       .filter((item) => item.type === "blob" && /\.(md|pdf)$/i.test(item.path) &&
-        (item.path.startsWith("knowledge/") || item.path.startsWith("textbooks/")))
+        (item.path.startsWith("knowledge/") || (selectedPrefix ? item.path.startsWith(selectedPrefix) : item.path.startsWith("textbooks/"))))
       .filter((item) => (item.size ?? 0) <= MAX_FILE_BYTES)
       .slice(0, MAX_FILES);
 
@@ -314,7 +340,7 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
         if (!item || totalBytes + item.size > MAX_TOTAL_BYTES) continue;
         totalBytes += item.size;
         if (item.path.toLowerCase().endsWith(".pdf")) {
-          const isBank = /بانک|سوال|سؤال|question.?bank/i.test(item.path.split("/").pop() || "");
+          const isBank = /بانک|سوال|سؤال|question.?bank|sample.?exam|نمونه.?آزمون/i.test(item.path);
           if (item.path.includes("chemistry-3-grade-12-experimental-math-1405") && !isBank) {
             console.info("[TEXTBOOK] skipped chemistry textbook PDF pending permission verification", { path: item.path });
             continue;
@@ -336,17 +362,31 @@ async function loadKnowledgeChunks(): Promise<KnowledgeChunk[]> {
     }
 
     const chunks = [...docs.flatMap(splitDocument), ...chunksFromPdfs];
-    console.info("[TEXTBOOK] private knowledge index loaded", { markdownFiles: docs.length, pdfChunks: chunksFromPdfs.length, chunks: chunks.length, bytes: totalBytes, repository: OWNER + "/" + REPOSITORY, branch: BRANCH });
+    console.info("[TEXTBOOK] private knowledge index loaded", {
+      subject: subject ?? "all",
+      markdownFiles: docs.length,
+      pdfChunks: chunksFromPdfs.length,
+      chunks: chunks.length,
+      bytes: totalBytes,
+      repository: OWNER + "/" + REPOSITORY,
+      branch: BRANCH,
+    });
     if (!chunks.length) throw new Error("No readable Markdown or PDF knowledge documents were found in Robo-Knowledge");
-    cache = { chunks, expiresAt: Date.now() + CACHE_TTL_MS };
+    cache.set(cacheKey, { chunks, expiresAt: Date.now() + CACHE_TTL_MS });
     return chunks;
   })();
 
-  try {
-    return await refreshPromise;
-  } finally {
-    refreshPromise = undefined;
-  }
+  refreshPromises.set(cacheKey, refresh);
+  void refresh.then(
+    () => refreshFailureUntil.delete(cacheKey),
+    () => refreshFailureUntil.set(cacheKey, Date.now() + 60_000),
+  ).finally(() => {
+    if (refreshPromises.get(cacheKey) === refresh) refreshPromises.delete(cacheKey);
+  });
+
+  // Serve the last good snapshot immediately while a stale cache refreshes in the background.
+  if (cached) return cached.chunks;
+  return refresh;
 }
 
 function scoreChunk(chunk: KnowledgeChunk, queryTokens: string[], normalizedQuestion: string): number {
@@ -423,15 +463,15 @@ export async function getTextbookPdfAttachment(question: string, conversationCon
 }
 
 export async function retrieveTextbookContext(question: string, conversationContext = ""): Promise<string | undefined> {
-  if (!isRelevantRequest(question)) return undefined;
+  const normalizedQuestion = normalize(question);
+  const combinedContext = normalize(question + " " + conversationContext);
+  const requestedPage = extractPrintedPage(question);
+  const subject = detectBookSubject(combinedContext);
+  if (!isRelevantRequest(question, conversationContext)) return undefined;
 
   try {
-    const chunks = await loadKnowledgeChunks();
-    const normalizedQuestion = normalize(question);
-    const combinedContext = normalize(question + " " + conversationContext);
-    const requestedPage = extractPrintedPage(question);
+    const chunks = await loadKnowledgeChunks(subject);
     const requestedChapter = extractRequestedChapter(combinedContext);
-    const subject = detectBookSubject(combinedContext);
     const subjectChunks = subject
       ? chunks.filter((chunk) => chunk.category === "knowledge" || chunkMatchesSubject(chunk, subject))
       : chunks;
