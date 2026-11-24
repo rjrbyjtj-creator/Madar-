@@ -1004,7 +1004,6 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     requestDeadlineMs: examRequestDeadlineMs,
     jobId: String((res.locals as Record<string, unknown>).examJobId || "") || undefined,
     jobToken: String((res.locals as Record<string, unknown>).examJobToken || "") || undefined,
-    jobToken: String((res.locals as Record<string, unknown>).examJobToken || "") || undefined,
   } : aiStudentContext;
 
   const aiResult = examSourceMissing
