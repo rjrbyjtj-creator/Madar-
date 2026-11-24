@@ -251,7 +251,7 @@ type ExamProvider = "gemini" | "groq" | "openrouter" | "cloudflare" | "huggingfa
 
 async function generateExamStageReply(
   messages: GeminiMessage[],
-  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number },
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string },
   provider: ExamProvider,
   modelId: string,
 ): Promise<{ text: string }> {
@@ -284,7 +284,7 @@ async function generateExamStageReply(
 
 async function generateExamInStages(
   messages: GeminiMessage[],
-  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number },
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string },
   provider: ExamProvider,
   modelId: string,
   requestedQuestionCount = 12,
@@ -296,6 +296,12 @@ async function generateExamInStages(
   // Use the deadline established before source retrieval; all preparation and
   // three model stages share the same bounded request budget.
   const requestDeadlineMs = context.requestDeadlineMs ?? Date.now() + 9 * 60_000;
+  const updateProgress = async (progress: string) => {
+    if (!context.jobId) return;
+    await AIJob.findByIdAndUpdate(context.jobId, { $set: { progress } }).catch((error: unknown) => {
+      console.warn("[EXAM_JOB] progress update failed:", error instanceof Error ? error.message : error);
+    });
+  };
   const withStage = (instruction: string, includeSourceFiles = false): GeminiMessage[] => [
     {
       role: "user",
@@ -304,6 +310,7 @@ async function generateExamInStages(
     },
   ];
 
+  await updateProgress("در حال تحلیل کتاب و بانک سؤال");
   console.info("[EXAM_PIPELINE] stage 1/3 source analysis started", { attachments: attachments.length });
   const analysis = await generateExamStageReply(withStage([
     "مرحله ۱ از ۳ — تحلیل منبع و طراحی نقشه آزمون.",
@@ -323,6 +330,7 @@ async function generateExamInStages(
   }
   console.info("[EXAM_PIPELINE] stage 1/3 complete", { chars: analysis.text.length });
 
+  await updateProgress("در حال طراحی سؤال‌های آزمون");
   console.info("[EXAM_PIPELINE] stage 2/3 question drafting started");
   const draft = await generateExamStageReply(withStage([
     "مرحله ۲ از ۳ — طراحی نسخه اولیه آزمون.",
@@ -342,6 +350,7 @@ async function generateExamInStages(
   }
   console.info("[EXAM_PIPELINE] stage 2/3 complete", { chars: draft.text.length });
 
+  await updateProgress("در حال بازبینی علمی و بارم‌بندی");
   console.info("[EXAM_PIPELINE] stage 3/3 independent review started");
   const reviewed = await generateExamStageReply(withStage([
     "مرحله ۳ از ۳ — بازبینی مستقل، اصلاح و نهایی‌سازی آزمون.",
@@ -361,6 +370,7 @@ async function generateExamInStages(
     throw new Error("بازبینی نهایی آزمون ناقص بود؛ نسخه کوتاه یا ناقص به‌عنوان برگه نهایی تحویل داده نشد.");
   }
   console.info("[EXAM_PIPELINE] stage 3/3 complete", { chars: reviewed.text.length });
+  await updateProgress("در حال صفحه‌آرایی برگه امتحان");
   return { text: reviewed.text };
 }
 
@@ -1021,6 +1031,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     availableFilesContext: availableFilesContext?.slice(0, 9000),
     articleWriterContext: aiStudentContext.articleWriterContext,
     requestDeadlineMs: examRequestDeadlineMs,
+    jobId: String((res.locals as Record<string, unknown>).examJobId || "") || undefined,
   } : aiStudentContext;
 
   const aiResult = examSourceMissing
@@ -1088,6 +1099,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       }
     } catch (error) {
       console.error("[EXAM] generation/validation failed:", error instanceof Error ? error.message : error);
+      if (skipExamQueue) throw error;
       reply = "سؤال‌ها تولید شدند، اما ساخت برگه آزمون با مشکل روبه‌رو شد. یک بار دیگر تلاش کن؛ اگر تکرار شد، درخواست را کوتاه‌تر و محدوده درس را دقیق‌تر بنویس.";
     }
   }
@@ -1133,13 +1145,17 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     title,
   });
 
-  // Persist in the background. A failed save must not break the chat UX.
-  void conversation.save().catch((err: unknown) => {
-    console.error(
-      "[AI] conversation save failed:",
-      err instanceof Error ? err.message : err,
-    );
-  });
+  // The background exam worker awaits persistence before marking its job complete.
+  if (skipExamQueue) {
+    await conversation.save();
+  } else {
+    void conversation.save().catch((err: unknown) => {
+      console.error(
+        "[AI] conversation save failed:",
+        err instanceof Error ? err.message : err,
+      );
+    });
+  }
 }
 
 export async function listConversations(_req: Request, res: Response): Promise<void> {
