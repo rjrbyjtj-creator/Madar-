@@ -165,8 +165,12 @@ export async function generateOpenRouterReply(
       }
 
       const data = await response.json() as {
-        choices?: Array<{ message?: { content?: string | null; tool_calls?: OpenRouterToolCall[] } }>;
+        choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: OpenRouterToolCall[] } }>;
       };
+      const finishReason = data.choices?.[0]?.finish_reason;
+      if (finishReason === "length") {
+        throw new AppError(502, "OPENROUTER_MAX_TOKENS", "خروجی مدل OpenRouter به سقف توکن رسید و ناقص ماند. محدوده آزمون را کوتاه‌تر کن یا آن را در دو بخش بساز.");
+      }
       const message = data.choices?.[0]?.message;
       const calls = message?.tool_calls ?? [];
       if (!calls.length) {
