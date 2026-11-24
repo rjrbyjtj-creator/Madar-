@@ -172,7 +172,7 @@ export async function generateGroqReply(
       const response = await requestGroqWithFallback(modelId, {
         messages: chatMessages,
         temperature: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 0.2 : 0.6,
-        max_completion_tokens: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 8192 : student.articleWriterContext ? 4096 : 2048,
+        max_completion_tokens: student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 4096 : student.articleWriterContext ? 4096 : 2048,
         ...(student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? { response_format: { type: "json_object" } } : {}),
         ...(tools ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
       }, student.requestDeadlineMs);
