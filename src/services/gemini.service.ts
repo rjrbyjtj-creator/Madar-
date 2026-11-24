@@ -506,7 +506,7 @@ function pcmToWav(pcm: Buffer, sampleRate = 24000, channels = 1): Buffer {
 }
 
 export async function generateGeminiSpeech(text: string): Promise<Buffer> {
-  if (!env.GEMINI_API_KEY) {
+  if (!getGeminiApiKeys().length) {
     throw new AppError(
       503,
       "AI_NOT_CONFIGURED",
