@@ -305,6 +305,12 @@ async function loadKnowledgeChunks(subject?: BookSubject): Promise<KnowledgeChun
     geometry: "textbooks/geometry/",
     english: "textbooks/english/",
   };
+  const bankPrefixes: Record<BookSubject, string> = {
+    chemistry: "question-banks/chemistry/grade-12/",
+    physics: "question-banks/physics/grade-12/",
+    geometry: "question-banks/geometry/grade-12/",
+    english: "question-banks/english/grade-12/",
+  };
 
   const refresh = (async () => {
     const treeUrl = API_BASE + "/repos/" + OWNER + "/" + REPOSITORY +
@@ -315,7 +321,9 @@ async function loadKnowledgeChunks(subject?: BookSubject): Promise<KnowledgeChun
     const selectedPrefix = subject ? subjectPrefixes[subject] : "";
     const paths = tree.tree
       .filter((item) => item.type === "blob" && /\.(md|pdf)$/i.test(item.path) &&
-        (item.path.startsWith("knowledge/") || (selectedPrefix ? item.path.startsWith(selectedPrefix) : item.path.startsWith("textbooks/"))))
+        (item.path.startsWith("knowledge/") || (selectedPrefix
+          ? item.path.startsWith(selectedPrefix) || item.path.startsWith(bankPrefixes[subject!])
+          : item.path.startsWith("textbooks/"))))
       .filter((item) => (item.size ?? 0) <= MAX_FILE_BYTES)
       .slice(0, MAX_FILES);
 
@@ -340,7 +348,8 @@ async function loadKnowledgeChunks(subject?: BookSubject): Promise<KnowledgeChun
         if (!item || totalBytes + item.size > MAX_TOTAL_BYTES) continue;
         totalBytes += item.size;
         if (item.path.toLowerCase().endsWith(".pdf")) {
-          const isBank = /بانک|سوال|سؤال|question.?bank|sample.?exam|نمونه.?آزمون/i.test(item.path);
+          const isBank = (subject ? item.path.startsWith(bankPrefixes[subject]) : false) ||
+            /بانک|سوال|سؤال|question.?bank|test.?bank|sample.?exam|نمونه.?آزمون/i.test(item.path);
           if (item.path.includes("chemistry-3-grade-12-experimental-math-1405") && !isBank) {
             console.info("[TEXTBOOK] skipped chemistry textbook PDF pending permission verification", { path: item.path });
             continue;
