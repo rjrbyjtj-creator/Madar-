@@ -147,7 +147,12 @@ const generatedExamSchema = z.object({
     text: z.string().trim().min(1).max(2000),
     score: examPositiveNumber(100).refine((value) => Math.abs(value * 4 - Math.round(value * 4)) < 0.001, "بارم باید مضربی از ۰٫۲۵ باشد."),
     section: z.string().trim().max(80).optional(),
-    answerLines: examInteger(1, 8).optional(),
+    answerLines: z.preprocess((value) => {
+      const normalized = normalizeExamNumber(value);
+      return typeof normalized === "number" && Number.isFinite(normalized)
+        ? Math.max(1, Math.min(8, Math.floor(normalized)))
+        : normalized;
+    }, z.number().int().min(1).max(8)).optional(),
     figureSvg: z.string().max(16000).optional(),
     figureAlt: z.string().trim().max(180).optional(),
   })).min(1).max(30),
