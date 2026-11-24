@@ -182,9 +182,10 @@ async function callModel(
   temperature: number,
   studentId?: mongoose.Types.ObjectId,
   apiKey?: string,
+  allowPlannerTools = false,
 ): Promise<{ text: string; finishReason?: string; blocked?: boolean; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
   const ai = createAI(timeoutMs, apiKey);
-  const tools = studentId ? [{ functionDeclarations: [...plannerToolDeclarations] }] : undefined;
+  const tools = studentId && allowPlannerTools ? [{ functionDeclarations: [...plannerToolDeclarations] }] : undefined;
   const examJsonMode = systemInstruction.includes("حالت طراحی آزمون تشریحی فعال است");
   const config: Record<string, unknown> = {
     systemInstruction,
@@ -257,6 +258,7 @@ export async function generateGeminiReply(
     localDate?: string;
     studentProfileContext?: string;
     requestDeadlineMs?: number;
+    plannerToolsEnabled?: boolean;
   },
   selectedModel?: (typeof GEMINI_MODEL_IDS)[number],
 ): Promise<{ text: string; planProposal?: PlannerProposal; planDeletionProposal?: PlannerDeletionProposal }> {
@@ -299,7 +301,7 @@ export async function generateGeminiReply(
 
   const systemInstruction = [
     SYSTEM_INSTRUCTION,
-    student.userId ? [
+    student.userId && student.plannerToolsEnabled ? [
       "ابزارهای واقعی برنامه‌ریزی در اختیار توست؛ از get_my_plans برای خواندن برنامه‌های ذخیره‌شده همین دانش‌آموز استفاده کن و برای بررسی برنامه، هرگز از دانش‌آموز نخواه برنامه را دوباره کپی کند مگر ابزار با خطا روبه‌رو شود. اگر بازه مشخص نیست، از ۱۴ روز قبل تا ۳۰ روز بعد از امروز را بخوان.",
       "برای ساخت برنامه از propose_plan استفاده کن؛ این ابزار فقط پیش‌نویس تولید می‌کند. ثبت نهایی فقط بعد از تأیید صریح دانش‌آموز در رابط چت انجام می‌شود.",
       "اگر دانش‌آموز صریحاً درخواست حذف فعالیت یا فعالیت‌های برنامه‌اش را کرد، ابتدا get_my_plans را برای بازه مرتبط اجرا کن و سپس propose_delete_plans را فقط با تاریخ و شناسه دقیق فعالیت‌هایی که کاربر مشخص کرده فراخوانی کن. این ابزار فقط پیش‌نویس حذف می‌سازد و هیچ چیزی را حذف نمی‌کند؛ حذف فقط پس از فشردن دکمه تأیید در رابط چت انجام می‌شود. اگر منظور کاربر از «برنامه‌ام را حذف کن» بین چند فعالیت یا چند روز روشن نیست، هیچ پیش‌نویسی نساز و سؤال کن کدام فعالیت/روز را می‌خواهد حذف کند. هرگز همه برنامه را به‌صورت حدسی حذف نکن.",
@@ -386,6 +388,7 @@ export async function generateGeminiReply(
         student.articleWriterContext?.includes("حالت طراحی آزمون تشریحی فعال است") ? 0.25 : 0.6,
         student.userId,
         apiKey,
+        student.plannerToolsEnabled,
       );
       lastFinishReason = finishReason;
 
