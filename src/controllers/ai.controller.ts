@@ -72,23 +72,26 @@ function isExamGenerationRequest(message: string, previousUserMessages = ""): bo
   if (questionSolvingIntent && !explicitCreationVerb) return false;
   return (hasQuestionArtifact && hasCreationIntent) || numberedQuestionRequest || explicitFollowup;
 }
-function getRequestedExamTotalScore(message: string): number {
-  const normalized = normalizeExamIntentText(message)
-    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
-    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
-  const numericMatch = normalized.match(
-    /(?:از\s*(?:مجموع\s*)?(\d{1,3})\s*(?:نمره|امتیاز)|(?:بارم(?:\s*کل)?|نمره(?:\s*کل)?|مجموع\s*نمره)\s*(?:برابر\s*با\s*)?(\d{1,3})|(\d{1,3})\s*(?:نمره|امتیاز)(?:\s*کل)?)/i,
-  );
-  const requested = numericMatch ? Number(numericMatch[1] ?? numericMatch[2] ?? numericMatch[3]) : NaN;
-  if (Number.isInteger(requested) && requested >= 1 && requested <= 100) return requested;
-  const wordMatch = normalized.match(/(?:از\s*)?(ده|پانزده|بیست و پنج|بیست|سی|چهل|پنجاه|صد)\s*نمره/i);
-  const wordScores: Record<string, number> = {
-    "ده": 10, "پانزده": 15, "بیست": 20, "بیست و پنج": 25,
-    "سی": 30, "چهل": 40, "پنجاه": 50, "صد": 100,
-  };
-  return wordMatch ? wordScores[wordMatch[1]] ?? 20 : 20;
+function getRequestedExamTotalScore(message: string, previousUserMessages = ""): number {
+  const candidates = [message, ...previousUserMessages.split("\n").reverse()];
+  for (const candidate of candidates) {
+    const normalized = normalizeExamIntentText(candidate)
+      .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+      .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
+    const numericMatch = normalized.match(
+      /(?:از\s*(?:مجموع\s*)?(\d{1,3})\s*(?:نمره|امتیاز)|(?:بارم(?:\s*کل)?|نمره(?:\s*کل)?|مجموع\s*نمره)\s*(?:برابر\s*با\s*)?(\d{1,3})|(\d{1,3})\s*(?:نمره|امتیاز)(?:\s*کل)?)/i,
+    );
+    const requested = numericMatch ? Number(numericMatch[1] ?? numericMatch[2] ?? numericMatch[3]) : NaN;
+    if (Number.isInteger(requested) && requested >= 1 && requested <= 100) return requested;
+    const wordMatch = normalized.match(/(?:از\s*)?(ده|پانزده|بیست و پنج|بیست|سی|چهل|پنجاه|صد)\s*نمره/i);
+    const wordScores: Record<string, number> = {
+      "ده": 10, "پانزده": 15, "بیست": 20, "بیست و پنج": 25,
+      "سی": 30, "چهل": 40, "پنجاه": 50, "صد": 100,
+    };
+    if (wordMatch) return wordScores[wordMatch[1]] ?? 20;
+  }
+  return 20;
 }
-
 function getRequestedExamQuestionCount(message: string, previousUserMessages = ""): number {
   const normalizeDigits = (value: string) => normalizeExamIntentText(value)
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
