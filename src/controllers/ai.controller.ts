@@ -806,6 +806,63 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const requestedExamQuestionCount = getRequestedExamQuestionCount(latestUserMessage, examIntentContext);
   // Start one shared budget before loading/indexing/uploading exam sources.
   const examRequestDeadlineMs = examGenerationMode ? Date.now() + 9 * 60_000 : undefined;
+
+  const skipExamQueue = Boolean((res.locals as Record<string, unknown>).skipExamQueue);
+  if (examGenerationMode && !skipExamQueue) {
+    // Persist the conversation shell before returning 202 so the background worker
+    // can reload it using the same ownership checks as a normal chat request.
+    await conversation.save();
+    const job = await AIJob.create({
+      user: user._id,
+      conversation: conversation._id,
+      status: "processing",
+      progress: "در حال آماده‌سازی کتاب و بانک سؤال",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60_000),
+    });
+
+    const workerRequest = {
+      body: { ...(req.body as Record<string, unknown>), conversationId: String(conversation._id) },
+    } as unknown as Request;
+    let workerStatus = 200;
+    let workerPayload: Record<string, any> | undefined;
+    const workerResponse = {
+      locals: { ...res.locals, skipExamQueue: true, examJobId: String(job._id) },
+      status(code: number) { workerStatus = code; return this; },
+      json(payload: Record<string, any>) { workerPayload = payload; return this; },
+    } as unknown as Response;
+
+    res.status(202).json({
+      ok: true,
+      jobId: String(job._id),
+      status: "processing",
+      progress: "در حال آماده‌سازی کتاب و بانک سؤال",
+      conversationId: String(conversation._id),
+      title: conversation.title,
+    });
+
+    // Detach only after the accepted job is persisted and the 202 response is sent.
+    void (async () => {
+      try {
+        await chatWithAI(workerRequest, workerResponse);
+        if (workerStatus < 200 || workerStatus >= 300 || !workerPayload?.ok) {
+          throw new Error(String(workerPayload?.message || "ساخت آزمون کامل نشد."));
+        }
+        await AIJob.findByIdAndUpdate(job._id, {
+          $set: { status: "completed", progress: "برگه آزمون آماده شد", result: workerPayload, error: "" },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "ساخت آزمون ناموفق بود.";
+        console.error("[EXAM_JOB] background job failed:", { jobId: String(job._id), message });
+        await AIJob.findByIdAndUpdate(job._id, {
+          $set: { status: "failed", progress: "ساخت آزمون با خطا متوقف شد", error: message.slice(0, 1200) },
+        }).catch((updateError: unknown) => {
+          console.error("[EXAM_JOB] failed to persist job error:", updateError instanceof Error ? updateError.message : updateError);
+        });
+      }
+    })();
+    return;
+  }
+
   const examBankContext = examGenerationMode ? await (async () => {
     const normalized = normalizeExamIntentText(latestUserMessage);
     const grade = /(?:پایه\s*)?(?:دهم|10|۱۰)/.test(normalized) ? "10"
