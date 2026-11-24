@@ -97,13 +97,25 @@ body{font-size:11.5pt;line-height:1.75}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 .math-display{direction:ltr;text-align:center;margin:6px 0;overflow-x:auto}.math-inline{direction:ltr;unicode-bidi:isolate}
+.language-exam .q{grid-template-columns:38px minmax(0,1fr) 52px;align-items:stretch}
+.language-exam .q>div:nth-child(2){padding:11px 13px}
+.language-exam .qt{display:flex;flex-direction:column;gap:7px;line-height:1.85}
+.language-exam .language-english-line{direction:ltr;text-align:left;unicode-bidi:isolate;font-family:Arial,"Segoe UI",sans-serif;font-size:14px;line-height:1.85;white-space:normal}
+.language-exam .language-persian-line{direction:rtl;text-align:right;line-height:1.9}
+.language-exam .language-option{direction:ltr;text-align:left;unicode-bidi:isolate;display:inline-flex;align-items:center;min-width:min(100%,220px);margin:2px 5px 2px 0;padding:5px 10px;border:1px solid #d9dee8;border-radius:8px;background:#f8f9fc;font:13px/1.6 Arial,"Segoe UI",sans-serif}
+.language-exam .language-spacer{height:5px}
+.language-exam .sec{margin:7px 0 0;border:1px solid var(--line);border-radius:9px}
+.language-exam .q{break-inside:avoid}
+.language-exam .ans{margin-top:8px}
+@media(max-width:640px){.language-exam .q{grid-template-columns:32px minmax(0,1fr) 44px}}
+
 </style>
 
 <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},svg:{fontCache:"global"}};</script>
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
 <body>
-<main class="sheet">
+<main class="sheet {{subjectClass}}">
 <header class="top">
 <div class="brand"><div class="logo" role="img" aria-label="لوگوی مدار"></div><div><b>مدار</b><span>دستیار آموزشی</span></div></div>
 <div class="ttl"><i>باسمه تعالی</i><h1>{{examTitle}}</h1><p>{{grade}} {{field}}</p></div>
