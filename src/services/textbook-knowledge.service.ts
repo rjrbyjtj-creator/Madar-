@@ -534,7 +534,7 @@ export async function retrieveTextbookContext(question: string, conversationCont
     }))
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score);
-    const examRequest = /(?:آزمون|امتحان|نمونه\s*سوال|نمونه\s*سؤال|برگه\s*امتحان|طراحی\s*کن|بساز)/i.test(normalizedQuestion);
+    const examRequest = /(?:آزمون|امتحان|نمونه\s*سوال|نمونه\s*سؤال|برگه\s*امتحان|طراحی\s*کن|بساز|می\s*خواهم|می\s*خوام|می\s*خواستم|لازم\s*دارم|نیاز\s*دارم)/i.test(normalizedQuestion);
     const ranked = examRequest
       ? [
           ...scoredChunks.filter((item) => item.chunk.category === "textbook").slice(0, 5),
