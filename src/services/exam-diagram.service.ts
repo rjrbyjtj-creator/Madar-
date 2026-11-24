@@ -2,7 +2,8 @@ export type DiagramPoint = { x: number; y: number; label?: string };
 export type ExamDiagramSpec =
   | { type: "coordinate"; xMin: number; xMax: number; yMin: number; yMax: number; points?: DiagramPoint[]; curve?: DiagramPoint[]; xLabel?: string; yLabel?: string }
   | { type: "vectors"; vectors: Array<{ x: number; y: number; label: string }>; origin?: { x: number; y: number } }
-  | { type: "geometry"; points: DiagramPoint[]; edges: Array<[number, number]>; circles?: Array<{ cx: number; cy: number; r: number; label?: string }> };
+  | { type: "geometry"; points: DiagramPoint[]; edges: Array<[number, number]>; circles?: Array<{ cx: number; cy: number; r: number; label?: string }> }
+  | { type: "circuit"; nodes: Array<{ x: number; y: number; label?: string }>; components: Array<{ kind: "wire" | "resistor" | "battery" | "lamp" | "switch" | "capacitor"; from: number; to: number; label?: string }> };
 
 const W = 480, H = 280, PAD = 34;
 const ink = "#111", guide = "#d7d7d7";
@@ -117,6 +118,64 @@ export function renderExamDiagram(input: unknown): string {
       const radius = c.r * scale;
       body += '<circle cx="' + center.x + '" cy="' + center.y + '" r="' + radius + '" fill="none" stroke="' + ink + '" stroke-width="2"/>';
       if (c.label) body += label(center.x, clamp(center.y - radius - 6, PAD+12, H-PAD), c.label);
+    }
+    return shell(body);
+  }
+  if (spec.type === "circuit") {
+    const nodes = spec.nodes;
+    const components = spec.components;
+    if (!Array.isArray(nodes) || nodes.length < 2 || nodes.length > 20 ||
+      !nodes.every((n) => n && finite(n.x) && finite(n.y) && (!("label" in n) || typeof n.label === "string")) ||
+      !Array.isArray(components) || components.length < 1 || components.length > 30) return "";
+    if (!components.every((c) => c && ["wire","resistor","battery","lamp","switch","capacitor"].includes(c.kind) &&
+      Number.isInteger(c.from) && Number.isInteger(c.to) && c.from >= 0 && c.to >= 0 &&
+      c.from < nodes.length && c.to < nodes.length && c.from !== c.to &&
+      (!("label" in c) || typeof c.label === "string"))) return "";
+    const xs = nodes.map((n: any) => n.x), ys = nodes.map((n: any) => n.y);
+    const xMin = Math.min(...xs), xMax = Math.max(...xs), yMin = Math.min(...ys), yMax = Math.max(...ys);
+    const rawWidth = xMax - xMin || 1, rawHeight = yMax - yMin || 1;
+    const scale = Math.min((W - PAD * 2 - 32) / rawWidth, (H - PAD * 2 - 32) / rawHeight);
+    const cx = (xMin + xMax) / 2, cy = (yMin + yMax) / 2;
+    const project = (p: {x:number;y:number}) => ({ x: W/2 + (p.x-cx)*scale, y: H/2 - (p.y-cy)*scale });
+    let body = "";
+    for (const component of components as Array<{kind:string;from:number;to:number;label?:string}>) {
+      const a = project(nodes[component.from] as any), b = project(nodes[component.to] as any);
+      const dx = b.x-a.x, dy = b.y-a.y, length = Math.hypot(dx,dy);
+      if (length < 18) continue;
+      const ux=dx/length, uy=dy/length, px=-uy, py=ux, mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      const half = Math.min(28, length*0.22);
+      const p1={x:mid.x-ux*half,y:mid.y-uy*half}, p2={x:mid.x+ux*half,y:mid.y+uy*half};
+      body += line(a.x,a.y,p1.x,p1.y,2) + line(p2.x,p2.y,b.x,b.y,2);
+      if (component.kind === "wire") body += line(p1.x,p1.y,p2.x,p2.y,2);
+      if (component.kind === "resistor") {
+        const pts=[p1];
+        for(let i=1;i<=6;i++){const t=i/7;pts.push({x:p1.x+ux*(2*half*t)+px*(i%2?7:-7),y:p1.y+uy*(2*half*t)+py*(i%2?7:-7)});}
+        pts.push(p2);
+        body += '<polyline points="'+pts.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+'" fill="none" stroke="'+ink+'" stroke-width="2.2" stroke-linejoin="round"/>';
+      }
+      if (component.kind === "battery") {
+        body += line(mid.x-px*12,mid.y-py*12,mid.x+px*12,mid.y+py*12,2.5);
+        body += line(mid.x+ux*7-px*7,mid.y+uy*7-py*7,mid.x+ux*7+px*7,mid.y+uy*7+py*7,2.5);
+        body += label(mid.x+px*19,mid.y+py*19,"+");
+      }
+      if (component.kind === "lamp") {
+        body += '<circle cx="'+mid.x+'" cy="'+mid.y+'" r="11" fill="white" stroke="'+ink+'" stroke-width="2"/>';
+        body += line(mid.x-6,mid.y-6,mid.x+6,mid.y+6,1.8)+line(mid.x-6,mid.y+6,mid.x+6,mid.y-6,1.8);
+      }
+      if (component.kind === "capacitor") {
+        body += line(mid.x-px*12-ux*4,mid.y-py*12-uy*4,mid.x+px*12-ux*4,mid.y+py*12-uy*4,2.2);
+        body += line(mid.x-px*12+ux*4,mid.y-py*12+uy*4,mid.x+px*12+ux*4,mid.y+py*12+uy*4,2.2);
+      }
+      if (component.kind === "switch") {
+        body += '<circle cx="'+p1.x+'" cy="'+p1.y+'" r="2.7" fill="'+ink+'"/><circle cx="'+p2.x+'" cy="'+p2.y+'" r="2.7" fill="'+ink+'"/>';
+        body += line(p1.x,p1.y,p2.x-ux*8-px*7,p2.y-uy*8-py*7,2.2);
+      }
+      if (component.label) body += label(mid.x+px*17,mid.y+py*17,component.label);
+    }
+    for (const node of nodes as Array<{x:number;y:number;label?:string}>) {
+      const p=project(node);
+      body += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+ink+'"/>';
+      if(node.label) body += label(p.x+7,p.y-8,node.label,"start");
     }
     return shell(body);
   }
