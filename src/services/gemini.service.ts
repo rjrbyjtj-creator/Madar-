@@ -190,7 +190,7 @@ async function callModel(
   const config: Record<string, unknown> = {
     systemInstruction,
     temperature,
-    maxOutputTokens: examJsonMode || systemInstruction.includes("نویسنده ارشد") ? 4096 : 2048,
+    maxOutputTokens: examJsonMode ? 8192 : systemInstruction.includes("نویسنده ارشد") ? 4096 : 2048,
     ...(examJsonMode ? { responseMimeType: "application/json" } : {}),
     ...(tools ? { tools, toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}),
   };
