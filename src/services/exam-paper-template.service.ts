@@ -181,7 +181,11 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
     field: escapeHtml(data.field ?? ""),
     duration: escapeHtml(data.duration),
     totalScore: escapeHtml(faDigits(data.totalScore)),
-    studentInfo: renderStudentInfo(data),
+    studentName: escapeHtml(data.studentName ?? ""),
+    school: escapeHtml(data.school ?? ""),
+    className: escapeHtml(data.className ?? ""),
+    teacher: escapeHtml(data.teacher ?? ""),
+    examDate: escapeHtml(data.examDate ?? ""),
     questionBlocks: renderQuestionBlocks(data.questions, languageMode),
   };
   return template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
