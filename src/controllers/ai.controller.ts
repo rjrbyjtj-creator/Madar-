@@ -284,7 +284,7 @@ async function generateExamStageReply(
 
 async function generateExamInStages(
   messages: GeminiMessage[],
-  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string },
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string; jobToken?: string },
   provider: ExamProvider,
   modelId: string,
   requestedQuestionCount = 12,
@@ -1003,6 +1003,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     articleWriterContext: aiStudentContext.articleWriterContext,
     requestDeadlineMs: examRequestDeadlineMs,
     jobId: String((res.locals as Record<string, unknown>).examJobId || "") || undefined,
+    jobToken: String((res.locals as Record<string, unknown>).examJobToken || "") || undefined,
     jobToken: String((res.locals as Record<string, unknown>).examJobToken || "") || undefined,
   } : aiStudentContext;
 
