@@ -249,7 +249,7 @@ type ExamProvider = "gemini" | "groq" | "openrouter" | "cloudflare" | "huggingfa
 
 async function generateExamStageReply(
   messages: GeminiMessage[],
-  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string },
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number },
   provider: ExamProvider,
   modelId: string,
 ): Promise<{ text: string }> {
@@ -276,6 +276,7 @@ async function generateExamStageReply(
     textMessages,
     modelId,
     [context.availableFilesContext, context.articleWriterContext].filter(Boolean).join("\n\n"),
+    context.requestDeadlineMs,
   );
 }
 
@@ -290,6 +291,9 @@ async function generateExamInStages(
   if (!latest) throw new Error("پیام آزمون پیدا نشد.");
   const baseInstructions = context.articleWriterContext ?? "";
   const attachments = latest.attachments ?? [];
+  // The full 3-stage exam pipeline has a 9-minute internal budget so the
+  // browser's 10-minute deadline leaves time to persist and return the paper.
+  const requestDeadlineMs = Date.now() + 9 * 60_000;
   const withStage = (instruction: string, includeSourceFiles = false): GeminiMessage[] => [
     {
       role: "user",
@@ -307,6 +311,7 @@ async function generateExamInStages(
     "خروجی فقط JSON معتبر با کلیدهای scope، objectives، bankPatterns، coverage، difficultyDistribution و scoringPlan باشد. هنوز سؤال نهایی طراحی نکن."
   ].join("\n"), true), {
     ...context,
+    requestDeadlineMs,
     articleWriterContext: "حالت طراحی آزمون تشریحی فعال است. این مرحله فقط تحلیل منبع و ساخت نقشه است؛ سؤال نهایی تولید نکن. پاسخ باید JSON معتبر و فقط شامل نقشه تحلیل باشد."
   }, provider, modelId);
 
@@ -325,6 +330,7 @@ async function generateExamInStages(
     "فقط JSON نهایی با ساختار تعیین‌شده برگردان؛ هیچ توضیح بیرون JSON ننویس."
   ].join("\n")), {
     ...context,
+    requestDeadlineMs,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله تولید نسخه اولیه است؛ نقشه تحلیل را دقیق اجرا کن."
   }, provider, modelId);
 
@@ -344,6 +350,7 @@ async function generateExamInStages(
     "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید دقیقاً " + requestedQuestionCount + " باشد؛ شماره‌ها از ۱ تا " + requestedQuestionCount + " پیوسته باشند؛ جمع بارم سؤال‌ها دقیقاً برابر totalScore باشد؛ بارم‌ها مضرب ۰٫۲۵ باشند. هیچ پاسخ‌نامه‌ای در برگه قرار نده."
   ].join("\n")), {
     ...context,
+    requestDeadlineMs,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله بازبین مستقل است؛ خطاها را اصلاح کن و فقط JSON نهایی را برگردان."
   }, provider, modelId);
 
