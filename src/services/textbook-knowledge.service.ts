@@ -527,14 +527,21 @@ export async function retrieveTextbookContext(question: string, conversationCont
     }
 
     const queryTokens = tokenize(question);
-    const ranked = chapterScopedChunks.map((chunk) => ({
+    const scoredChunks = chapterScopedChunks.map((chunk) => ({
       chunk,
       score: scoreChunk(chunk, queryTokens, normalizedQuestion) +
         (chunk.chapter && combinedContext.includes(normalize(chunk.chapter)) ? 5 : 0),
     }))
       .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, MAX_CONTEXT_CHUNKS);
+      .sort((a, b) => b.score - a.score);
+    const examRequest = /(?:آزمون|امتحان|نمونه\s*سوال|نمونه\s*سؤال|برگه\s*امتحان|طراحی\s*کن|بساز)/i.test(normalizedQuestion);
+    const ranked = examRequest
+      ? [
+          ...scoredChunks.filter((item) => item.chunk.category === "textbook").slice(0, 5),
+          ...scoredChunks.filter((item) => item.chunk.category === "question-bank").slice(0, 5),
+          ...scoredChunks.filter((item) => item.chunk.category === "knowledge").slice(0, 2),
+        ].sort((a, b) => b.score - a.score).slice(0, MAX_CONTEXT_CHUNKS)
+      : scoredChunks.slice(0, MAX_CONTEXT_CHUNKS);
 
     if (!ranked.length) {
       return [
@@ -555,7 +562,7 @@ export async function retrieveTextbookContext(question: string, conversationCont
       "فقط ادعاهایی را به این منابع نسبت بده که واقعاً در قطعه‌های زیر پشتیبانی می‌شوند. اگر صفحه چاپی در منبع مشخص نشده، شماره صفحه نساز.",
       "مسیر منابع: " + sourceList.join(" | "),
       ...ranked.map(({ chunk }, index) =>
-        "[منبع " + (index + 1) + " | " + chunk.path +
+        "[منبع " + (index + 1) + " | نوع: " + (chunk.category === "question-bank" ? "بانک سؤال" : chunk.category === "textbook" ? "کتاب درسی" : "دانش تکمیلی") + " | " + chunk.path +
         (chunk.printedPage ? " | صفحه چاپی " + chunk.printedPage : "") +
         (chunk.pdfPage ? " | صفحه PDF " + chunk.pdfPage : "") +
         (chunk.chapter ? " | فصل: " + chunk.chapter : "") +
