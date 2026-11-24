@@ -295,6 +295,50 @@ async function generateExamStageReply(
   );
 }
 
+async function generateExamStageWithRetry(
+  messages: GeminiMessage[],
+  context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string; jobToken?: string },
+  provider: ExamProvider,
+  modelId: string,
+  minChars: number,
+  stageLabel: string,
+): Promise<{ text: string }> {
+  const first = await generateExamStageReply(messages, context, provider, modelId);
+  if (first.text.trim().length >= minChars) return first;
+
+  const remainingMs = context.requestDeadlineMs ? context.requestDeadlineMs - Date.now() : 9 * 60_000;
+  if (remainingMs < 45_000) {
+    throw new Error(stageLabel + " ناقص بود و زمان کافی برای بازتولید باقی نمانده است.");
+  }
+
+  console.warn("[EXAM_PIPELINE] retrying incomplete stage once", {
+    stage: stageLabel,
+    chars: first.text.trim().length,
+    provider,
+    modelId,
+  });
+  const retryMessages = messages.map((message, index) =>
+    index === messages.length - 1
+      ? {
+          ...message,
+          content: message.content + "\n\n" +
+            "تلاش قبلی خروجی ناقص و کوتاه بود. این بار کل خروجی موردنیاز را کامل تولید کن؛ هیچ مرحله یا سؤال را حذف نکن. فقط قالب خواسته‌شده را برگردان.",
+        }
+      : message,
+  );
+  const retry = await generateExamStageReply(retryMessages, context, provider, modelId);
+  if (retry.text.trim().length < minChars) {
+    console.error("[EXAM_PIPELINE] stage remained incomplete after one retry", {
+      stage: stageLabel,
+      chars: retry.text.trim().length,
+      provider,
+      modelId,
+    });
+    throw new Error(stageLabel + " پس از یک بار تلاش مجدد هم ناقص ماند؛ خروجی ناقص به برگه نهایی تبدیل نشد.");
+  }
+  return retry;
+}
+
 async function generateExamInStages(
   messages: GeminiMessage[],
   context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string; requestDeadlineMs?: number; jobId?: string; jobToken?: string },
@@ -332,7 +376,7 @@ async function generateExamInStages(
 
   await updateProgress("در حال تحلیل کتاب و بانک سؤال");
   console.info("[EXAM_PIPELINE] stage 1/3 source analysis started", { attachments: attachments.length });
-  const analysis = await generateExamStageReply(withStage([
+  const analysis = await generateExamStageWithRetry(withStage([
     "مرحله ۱ از ۳ — تحلیل منبع و طراحی نقشه آزمون.",
     hasGeminiSourceFiles
       ? "PDFهای واقعیِ پیوست‌شده و نقشه/فراداده کتاب را با هم بررسی کن. ابتدا نقشه کتاب را برای تشخیص فصل‌ها، درس‌ها و مرز موضوعی بخوان؛ سپس محدوده دقیق مبحث را در PDF کتاب پیدا و مفاهیم، تعاریف، روابط، مثال‌ها و اهداف قابل سنجش را فهرست کن. اگر نقشه جداگانه موجود نیست، ساختار را از فهرست و خود کتاب استخراج کن و این محدودیت را در blueprint ثبت کن."
@@ -344,7 +388,7 @@ async function generateExamInStages(
     ...context,
     requestDeadlineMs,
     articleWriterContext: "حالت طراحی آزمون تشریحی فعال است. این مرحله فقط تحلیل منبع و ساخت نقشه است؛ سؤال نهایی تولید نکن. پاسخ باید JSON معتبر و فقط شامل نقشه تحلیل باشد."
-  }, provider, modelId);
+  }, provider, modelId, 400, "تحلیل منبع");
 
   if (analysis.text.trim().length < 400) {
     console.error("[EXAM_PIPELINE] stage 1 returned an incomplete source analysis", { chars: analysis.text.trim().length, provider, modelId });
@@ -354,7 +398,7 @@ async function generateExamInStages(
 
   await updateProgress("در حال طراحی سؤال‌های آزمون");
   console.info("[EXAM_PIPELINE] stage 2/3 question drafting started");
-  const draft = await generateExamStageReply(withStage([
+  const draft = await generateExamStageWithRetry(withStage([
     "مرحله ۲ از ۳ — طراحی نسخه اولیه آزمون.",
     "نقشه تحلیل مرحله اول را مبنا قرار بده و فقط بر اساس محدوده کتاب و الگوی بانک سؤال، آزمونی تازه بساز.",
     "نقشه تحلیل مرحله اول:\n" + analysis.text,
@@ -365,7 +409,7 @@ async function generateExamInStages(
     availableFilesContext: undefined,
     requestDeadlineMs,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله تولید نسخه اولیه است؛ نقشه تحلیل را دقیق اجرا کن."
-  }, provider, modelId);
+  }, provider, modelId, 800, "پیش‌نویس آزمون");
 
   if (draft.text.trim().length < 800) {
     console.error("[EXAM_PIPELINE] stage 2 returned an incomplete exam draft", { chars: draft.text.trim().length, provider, modelId });
@@ -375,7 +419,7 @@ async function generateExamInStages(
 
   await updateProgress("در حال بازبینی علمی و بارم‌بندی");
   console.info("[EXAM_PIPELINE] stage 3/3 independent review started");
-  const reviewed = await generateExamStageReply(withStage([
+  const reviewed = await generateExamStageWithRetry(withStage([
     "مرحله ۳ از ۳ — بازبینی مستقل، اصلاح و نهایی‌سازی آزمون.",
     "نقشه تحلیل مرحله اول:\n" + analysis.text,
     "پیش‌نویس مرحله دوم:\n" + draft.text,
@@ -387,7 +431,7 @@ async function generateExamInStages(
     availableFilesContext: undefined,
     requestDeadlineMs,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله بازبین مستقل است؛ خطاها را اصلاح کن و فقط JSON نهایی را برگردان."
-  }, provider, modelId);
+  }, provider, modelId, 800, "بازبینی نهایی آزمون");
 
   if (reviewed.text.trim().length < 800) {
     console.error("[EXAM_PIPELINE] stage 3 returned an incomplete reviewed exam", { chars: reviewed.text.trim().length, provider, modelId });
@@ -972,9 +1016,20 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     },
   ];
   const unsupportedConversationPdfForProvider = examGenerationMode && selectedProvider !== "gemini" && conversationDocuments.length > 0;
-  const examSourceAvailable = Boolean(examSourceLibrary?.hasBookPdfs && examSourceLibrary?.hasQuestionBankPdfs) ||
-    (selectedProvider === "gemini" && conversationDocuments.length > 0);
-  const explicitlyNamedSource = /(از\s*(کتاب|جزوه|فایل)\s*[:«"“]?\s*[^،؛.]{2,}|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه)|فایل\s*پیوست)/i.test(normalizeExamIntentText(examPromptMessage));
+  const hasRetrievedBookChunks = Boolean(
+    examKnowledgeContext?.includes("=== منابع بازیابی‌شده از کتابخانه خصوصی Robo-Knowledge ===") &&
+    /\[منبع\s+\d+\s+\|\s*نوع:\s*کتاب درسی/i.test(examKnowledgeContext),
+  );
+  const hasRetrievedBankChunks = Boolean(
+    /\[منبع\s+\d+\s+\|\s*نوع:\s*بانک سؤال/i.test(examKnowledgeContext ?? "") ||
+    examBankContext.includes("نمونه‌های مرتبط از بانک سؤال اختصاصی مدار"),
+  );
+  // Gemini can inspect the uploaded source PDFs directly. Other providers must
+  // have actual extracted book text and question-bank excerpts in their prompt.
+  const examSourceAvailable = selectedProvider === "gemini"
+    ? Boolean(examSourceLibrary?.bookAttachments.length && examSourceLibrary?.bankAttachments.length) || conversationDocuments.length > 0
+    : hasRetrievedBookChunks && hasRetrievedBankChunks;
+  const explicitlyNamedSource = /(?:از\s*(?:کتاب|جزوه|فایل|فصل|مبحث|درس)\s*[:«"“]?\s*[^،؛.]{1,}|طبق\s*(?:کتاب|جزوه|فصل|مبحث)|بر\s*اساس\s*(?:کتاب|جزوه|فصل|مبحث)|فایل\s*پیوست)/i.test(normalizeExamIntentText(examPromptMessage));
   // Never claim a non-Gemini provider read a user-uploaded PDF: Gemini File URIs
   // are not consumable by the other providers and have not been text-extracted.
   const examSourceMissing = examGenerationMode && (
