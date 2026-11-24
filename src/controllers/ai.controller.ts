@@ -58,15 +58,18 @@ function normalizeExamIntentText(value: string): string {
 function isExamGenerationRequest(message: string, previousUserMessages = ""): boolean {
   const current = normalizeExamIntentText(message);
   const history = normalizeExamIntentText(previousUserMessages);
-  const hasQuestionArtifact = /(آزمون|امتحان|آزمونک|کوییز|کوئیز|quiz|برگه\s*(?:امتحان|آزمون|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|سوالات?|سؤالات?|پرسش)/i.test(current);
+  const hasQuestionArtifact = /(آزمون|امتحان|آزمونک|کوییز|کوئیز|quiz|برگه|نمونه\s*سوال|نمونه\s*سؤال|سوالات?|سؤالات?|پرسش)/i.test(current);
   // Only explicit creation/quiz-taking verbs activate the heavy exam pipeline.
   // Words such as «بده»، «برام»، «ساختار» or an old assistant reply are not sufficient.
-  const hasCreationIntent = /(?:طراحی\s*(?:کن|بکن|نمایش\s*بده|کنید)|طراحی\s+(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)|بساز(?:م|ید)?|تهیه\s*(?:کن|بکن)|تولید\s*(?:کن|بکن)|آماده\s*(?:کن|بکن)|درست\s*کن|ایجاد\s*کن|ساخت(?:ن)?\s+(?:آزمون|امتحان|برگه|سوال|سؤال)|امتحان\s*بگیر|آزمون\s*بگیر|نمونه\s*سوال\s*بده|نمونه\s*سؤال\s*بده|می\s*خواهم|می\s*خوام|می\s*خواستم|می\s*خوامش|می\s*خوام\s*که|لازم\s*دارم|نیاز\s*دارم)/i.test(current);
+  const hasCreationIntent = /(?:طراحی\s*(?:کن|بکن|کنی|کنید|نمایش\s*بده)|طراحی\s+(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)|بساز(?:م|ی|ید)?|تهیه\s*(?:کن|بکن|کنی|کنید)|تولید\s*(?:کن|بکن|کنی|کنید)|آماده\s*(?:کن|بکن|کنی|کنید)|درست\s*کن|ایجاد\s*کن|ساخت(?:ن)?\s+(?:آزمون|امتحان|برگه|سوال|سؤال)|امتحان\s*بگیر|آزمون\s*بگیر|نمونه\s*سوال\s*بده|نمونه\s*سؤال\s*بده|می\s*خواهم|می\s*خوام|می\s*خواستم|می\s*خوامش|می\s*خوام\s*که|لازم\s*دارم|نیاز\s*دارم)/i.test(current);
+  const explicitCreationVerb = /(?:طراحی\s*(?:کن|بکن|کنی|کنید)|بساز(?:م|ی|ید)?|تهیه\s*(?:کن|بکن|کنی|کنید)|تولید\s*(?:کن|بکن|کنی|کنید)|آماده\s*(?:کن|بکن|کنی|کنید)|درست\s*کن|ایجاد\s*کن|امتحان\s*بگیر|آزمون\s*بگیر)/i.test(current);
+  const questionSolvingIntent = /(?:حل\s*(?:کن|کنی|کنید)|حلش\s*کن|جواب\s*(?:بده|بدی|بدید)|پاسخ\s*(?:بده|بدی|بدید))/i.test(current);
   const numberedQuestionRequest = /(?:تعداد\s*)?(?:\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i.test(current) &&
     /(?:بساز|طراحی|تهیه|تولید|آماده|ارائه\s*کن|بده)/i.test(current) &&
     !/(?:جواب|پاسخ)\s*بده|حل\s*کن/i.test(current);
   const explicitFollowup = /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو).{0,35}(?:آزمون|امتحان|برگه|سوال|سؤال).{0,25}(?:بساز|طراحی\s*کن|تهیه\s*کن|آماده\s*کن)/i.test(current) &&
     /(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)/i.test(history);
+  if (questionSolvingIntent && !explicitCreationVerb) return false;
   return (hasQuestionArtifact && hasCreationIntent) || numberedQuestionRequest || explicitFollowup;
 }
 function getRequestedExamTotalScore(message: string): number {
