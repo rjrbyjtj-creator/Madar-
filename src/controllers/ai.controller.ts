@@ -54,34 +54,52 @@ function normalizeExamIntentText(value: string): string {
     .toLowerCase();
 }
 
-function isExamGenerationRequest(message: string, conversationContext = ""): boolean {
+function isExamGenerationRequest(message: string, previousUserMessages = ""): boolean {
   const current = normalizeExamIntentText(message);
-  const combined = normalizeExamIntentText(message + " " + conversationContext);
-  const hasExamArtifact = /(آزمون|امتحان|نمونه\s*سوال|نمونه\s*سؤال|آزمونک|کوییز|کوئیز|quiz|برگه\s*امتحان|سوالات?\s*(?:تشریحی|تستی|چهارگزینه.?ای)|برگه\s*(?:سوال|سؤال))/i.test(combined);
-  const hasQuestionArtifact = /(سوال|سؤال|پرسش)/i.test(current);
-  const hasCreationIntent = /(طراحی|طرح|بساز|ساخت|تهیه|آماده|تولید|درست\s*کن|ایجاد|برام|واسم|تهیه\s*کن|فایل\s*(کن|بده|بساز)|خروجی\s*بگیر|بده)/i.test(current);
-  const hasExamScope = /(از\s*(کتاب|فصل|مبحث|درس|جزوه|فایل)|طبق\s*(کتاب|جزوه)|بر\s*اساس\s*(کتاب|جزوه)|برای\s*(فصل|مبحث|درس))/i.test(current);
-  const isExamFollowup = /(همون|همان|حالا|خب|پس|این\s*رو|اونو|همین).{0,45}(بساز|طراحی|تهیه|آماده|فایل|درست\s*کن|بده)/i.test(current) &&
-    /(آزمون|امتحان|سوال|سؤال|برگه)/i.test(normalizeExamIntentText(conversationContext));
-  const directPaperRequest = /(برگه\s*(?:امتحان|آزمون|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|آزمونک|امتحان\s*(?:تشریحی|تستی)?)/i.test(current);
-  return (hasExamArtifact && (hasCreationIntent || hasExamScope || isExamFollowup || directPaperRequest)) ||
-    (hasQuestionArtifact && hasCreationIntent);
+  const history = normalizeExamIntentText(previousUserMessages);
+  const hasQuestionArtifact = /(آزمون|امتحان|آزمونک|کوییز|کوئیز|quiz|برگه\s*(?:امتحان|آزمون|سوال|سؤال)|نمونه\s*سوال|نمونه\s*سؤال|سوالات?|سؤالات?|پرسش)/i.test(current);
+  // Only explicit creation/quiz-taking verbs activate the heavy exam pipeline.
+  // Words such as «بده»، «برام»، «ساختار» or an old assistant reply are not sufficient.
+  const hasCreationIntent = /(?:طراحی\s*(?:کن|بکن|نمایش\s*بده|کنید)|طراحی\s+(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)|بساز(?:م|ید)?|تهیه\s*(?:کن|بکن)|تولید\s*(?:کن|بکن)|آماده\s*(?:کن|بکن)|درست\s*کن|ایجاد\s*کن|ساخت(?:ن)?\s+(?:آزمون|امتحان|برگه|سوال|سؤال)|امتحان\s*بگیر|آزمون\s*بگیر|نمونه\s*سوال\s*بده|نمونه\s*سؤال\s*بده)/i.test(current);
+  const numberedQuestionRequest = /(?:تعداد\s*)?(?:\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i.test(current) &&
+    /(?:بساز|طراحی|تهیه|تولید|آماده|ارائه\s*کن|بده)/i.test(current);
+  const explicitFollowup = /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو).{0,35}(?:آزمون|امتحان|برگه|سوال|سؤال).{0,25}(?:بساز|طراحی\s*کن|تهیه\s*کن|آماده\s*کن)/i.test(current) &&
+    /(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال)/i.test(history);
+  return (hasQuestionArtifact && hasCreationIntent) || numberedQuestionRequest || explicitFollowup;
 }
 function getRequestedExamTotalScore(message: string): number {
   const normalized = normalizeExamIntentText(message)
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
   const numericMatch = normalized.match(
-    /(?:از\s*(\d{1,3})\s*(?:نمره|امتیاز)?|(?:بارم(?:\s*کل)?|مجموع(?:\s*نمره)?)\s*(?:\s*برابر\s*با)?\s*(\d{1,3})|\b(\d{1,3})\s*(?:نمره|امتیاز))/i,
+    /(?:از\s*(?:مجموع\s*)?(\d{1,3})\s*(?:نمره|امتیاز)|(?:بارم(?:\s*کل)?|نمره(?:\s*کل)?|مجموع\s*نمره)\s*(?:برابر\s*با\s*)?(\d{1,3})|(\d{1,3})\s*(?:نمره|امتیاز)(?:\s*کل)?)/i,
   );
   const requested = numericMatch ? Number(numericMatch[1] ?? numericMatch[2] ?? numericMatch[3]) : NaN;
   if (Number.isInteger(requested) && requested >= 1 && requested <= 100) return requested;
-  const wordMatch = normalized.match(/\b(ده|پانزده|بیست|بیست و پنج|سی|چهل|پنجاه|صد)\s*نمره/i);
+  const wordMatch = normalized.match(/(?:از\s*)?(ده|پانزده|بیست و پنج|بیست|سی|چهل|پنجاه|صد)\s*نمره/i);
   const wordScores: Record<string, number> = {
     "ده": 10, "پانزده": 15, "بیست": 20, "بیست و پنج": 25,
     "سی": 30, "چهل": 40, "پنجاه": 50, "صد": 100,
   };
   return wordMatch ? wordScores[wordMatch[1]] ?? 20 : 20;
+}
+
+function getRequestedExamQuestionCount(message: string): number {
+  const normalized = normalizeExamIntentText(message)
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
+  const match = normalized.match(
+    /(?:تعداد\s*)?(\d{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده|سیزده|چهارده|پانزده|شانزده|هفده|هجده|نوزده|بیست)\s*(?:تا\s*)?(?:سوال|سؤال|پرسش)/i,
+  );
+  if (!match) return 12;
+  const words: Record<string, number> = {
+    "یک": 1, "دو": 2, "سه": 3, "چهار": 4, "پنج": 5, "شش": 6,
+    "هفت": 7, "هشت": 8, "نه": 9, "ده": 10, "یازده": 11, "دوازده": 12,
+    "سیزده": 13, "چهارده": 14, "پانزده": 15, "شانزده": 16, "هفده": 17,
+    "هجده": 18, "نوزده": 19, "بیست": 20,
+  };
+  const parsed = Number(match[1]) || words[match[1]];
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 30 ? parsed : 12;
 }
 
 function normalizeExamNumber(value: unknown): unknown {
@@ -116,7 +134,7 @@ const generatedExamSchema = z.object({
     answerLines: examInteger(1, 8).optional(),
     figureSvg: z.string().max(16000).optional(),
     figureAlt: z.string().trim().max(180).optional(),
-  })).min(12).max(18),
+  })).min(1).max(30),
 });
 
 
@@ -266,6 +284,7 @@ async function generateExamInStages(
   context: { persona?: "balanced" | "friendly" | "buddy" | "witty"; availableFilesContext?: string; articleWriterContext?: string },
   provider: ExamProvider,
   modelId: string,
+  requestedQuestionCount = 12,
 ): Promise<{ text: string; planProposal?: undefined; planDeletionProposal?: undefined }> {
   const latest = messages[messages.length - 1];
   if (!latest) throw new Error("پیام آزمون پیدا نشد.");
@@ -298,7 +317,7 @@ async function generateExamInStages(
     "مرحله ۲ از ۳ — طراحی نسخه اولیه آزمون.",
     "نقشه تحلیل مرحله اول را مبنا قرار بده و فقط بر اساس محدوده کتاب و الگوی بانک سؤال، آزمونی تازه بساز.",
     "نقشه تحلیل مرحله اول:\n" + analysis.text,
-    "تمام قواعد قالب JSON، تعداد سؤال، بارم‌بندی، سطح پایه، استقلال سؤال‌ها و استاندارد علمی را رعایت کن. برای هر زیربخش بارم جداگانه را داخل متن همان زیربخش به شکل «(۰٫۲۵ نمره)» یا «(۰٫۵ نمره)» بنویس. جمع زیربخش‌ها باید دقیقاً با بارم سؤال اصلی برابر باشد.",
+    "تعداد سؤال‌های اصلی را دقیقاً " + requestedQuestionCount + " عدد بساز؛ نه کمتر و نه بیشتر. تعداد سؤال را با تعداد زیربخش‌ها اشتباه نگیر. تمام قواعد قالب JSON، بارم‌بندی، سطح پایه، استقلال سؤال‌ها و استاندارد علمی را رعایت کن. برای هر زیربخش بارم جداگانه را داخل متن همان زیربخش به شکل «(۰٫۲۵ نمره)» یا «(۰٫۵ نمره)» بنویس. جمع زیربخش‌ها باید دقیقاً با بارم سؤال اصلی برابر باشد.",
     "فقط JSON نهایی با ساختار تعیین‌شده برگردان؛ هیچ توضیح بیرون JSON ننویس."
   ].join("\n")), {
     ...context,
@@ -318,7 +337,7 @@ async function generateExamInStages(
     "پیش‌نویس مرحله دوم:\n" + draft.text,
     "اکنون مانند دبیر ممتحن سخت‌گیر، تمام سؤال‌ها را یک‌به‌یک حل و بررسی کن: انطباق با مبحث و کتاب، شباهت بیش از حد به نمونه بانک، وضوح صورت سؤال، کفایت داده‌ها، یکتایی پاسخ، صحت علمی و محاسبات، واحدها، سطح دشواری، تناسب بارم با زمان و جمع بارم هر زیربخش.",
     "هر سؤال ضعیف، تکراری، مبهم یا دارای داده ناکافی را اصلاح یا جایگزین کن. بارم‌ها را از نو منطقی بررسی کن؛ همه سؤال‌ها را هم‌نمره نکن و اختلاف بارم باید متناسب با زمان و دشواری باشد.",
-    "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید بین ۱۲ تا ۱۸ باشد؛ شماره‌ها از ۱ تا N پیوسته باشند؛ جمع بارم سؤال‌ها دقیقاً برابر totalScore باشد؛ بارم‌ها مضرب ۰٫۲۵ باشند. هیچ پاسخ‌نامه‌ای در برگه قرار نده."
+    "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید دقیقاً " + requestedQuestionCount + " باشد؛ شماره‌ها از ۱ تا " + requestedQuestionCount + " پیوسته باشند؛ جمع بارم سؤال‌ها دقیقاً برابر totalScore باشد؛ بارم‌ها مضرب ۰٫۲۵ باشند. هیچ پاسخ‌نامه‌ای در برگه قرار نده."
   ].join("\n")), {
     ...context,
     articleWriterContext: baseInstructions + "\n\nحالت طراحی آزمون تشریحی فعال است. این مرحله بازبین مستقل است؛ خطاها را اصلاح کن و فقط JSON نهایی را برگردان."
@@ -733,8 +752,9 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     (/(برنامه|پلن)/i.test(latestUserMessage) || isPlannerReviewRequest(latestUserMessage) || isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
   const createPlanMode = user.role === "student" &&
     (isPlannerCreateRequest(latestUserMessage) || isPlanDateFollowup);
-  const examIntentContext = history.slice(-6).map((item) => item.content).join("\\n");
+  const examIntentContext = history.slice(-6).filter((item) => item.role === "user").map((item) => item.content).join("\n");
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
+  const requestedExamQuestionCount = getRequestedExamQuestionCount(latestUserMessage);
   const examBankContext = examGenerationMode ? await (async () => {
     const normalized = normalizeExamIntentText(latestUserMessage);
     const grade = /(?:پایه\s*)?(?:دهم|10|۱۰)/.test(normalized) ? "10"
@@ -900,12 +920,12 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
       : examGenerationMode
         ? examSourceLibrary?.bookAttachments.length && examSourceLibrary?.bankAttachments.length
-          ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"))
+          ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"), requestedExamQuestionCount)
           : conversationDocuments.length || textbookPdfAttachment
             ? selectedProvider === "gemini"
-              ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, selectedGeminiModelId)
+              ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, selectedGeminiModelId, requestedExamQuestionCount)
               : { text: JSON.stringify({ clarification: "برای تحلیل PDF پیوست‌شده در همین گفتگو، فعلاً باید Gemini را انتخاب کنی. برای استفاده از مدل‌های دیگر، فایل کتاب و بانک سؤال باید در کتابخانه متنیِ قابل بازیابی مدار موجود باشند." }) }
-            : await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"))
+            : await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"), requestedExamQuestionCount)
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
