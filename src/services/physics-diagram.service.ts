@@ -25,7 +25,7 @@ export type PhysicsDiagram = z.infer<typeof physicsDiagramSchema>;
 
 const esc = (value: string) => value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const line = (x1: number, y1: number, x2: number, y2: number, extra = "") => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" ${extra}/>`;
-const text = (x: number, y: number, value: string, extra = "") => `<text x="${x}" y="${y}" class="lbl" ${extra}>${esc(value)}</text>`;
+const text = (x: number, y: number, value: string, extra = "") => `<text x="${x}" y="${y}" fill="#17212d" font-family="Arial,sans-serif" font-size="16" ${extra}>${esc(value)}</text>`;
 const arrow = (x1: number, y1: number, x2: number, y2: number, caption: string, color = "#202a36") =>
   line(x1, y1, x2, y2, `stroke="${color}" stroke-width="2.4" marker-end="url(#arrow)"`) +
   text((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 7, caption);
@@ -36,7 +36,7 @@ function axes(): string {
 }
 function renderFreeBody(d: Extract<PhysicsDiagram, {type:"free-body"}>): string {
   const cx = 320, cy = 174;
-  let out = `<rect x="286" y="140" width="68" height="68" rx="3" class="object"/>` + text(cx, cy + 5, d.bodyLabel, 'text-anchor="middle"');
+  let out = `<rect x="286" y="140" width="68" height="68" rx="3" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` + text(cx, cy + 5, d.bodyLabel, 'text-anchor="middle"');
   d.forces.forEach((f) => {
     const a = f.angleDeg * Math.PI / 180, length = 48 + Math.min(42, (f.magnitude ?? 1) * 4);
     out += arrow(cx, cy, cx + Math.cos(a) * length, cy - Math.sin(a) * length, f.label);
@@ -60,7 +60,7 @@ function renderPulley(d: Extract<PhysicsDiagram, {type:"pulley"}>): string {
   return line(120, 85, 520, 85, 'stroke="#303b49" stroke-width="3"') +
     line(320, 85, 320, 110, 'stroke="#303b49" stroke-width="2"') +
     `<circle cx="320" cy="132" r="22" class="object"/>` +
-    `<path d="M298 132 V245 M342 132 V245" class="stroke" fill="none"/>` +
+    `<path d="M298 132 V245 M342 132 V245" stroke="#303b49" stroke-width="2" fill="none" fill="none"/>` +
     `<rect x="272" y="245" width="52" height="42" class="object"/><rect x="316" y="245" width="52" height="42" class="object"/>` +
     text(298, 271, d.leftMass, 'text-anchor="middle"') + text(342, 271, d.rightMass, 'text-anchor="middle"') +
     (d.showTension ? text(276, 185, "T") + text(350, 185, "T") : "");
@@ -85,7 +85,7 @@ function renderSpring(d: Extract<PhysicsDiagram, {type:"spring"}>): string {
 }
 function renderCircuit(d: Extract<PhysicsDiagram, {type:"circuit"}>): string {
   const meter = d.meter === "ammeter"
-    ? `<circle cx="320" cy="95" r="22" class="meter"/>` + text(320, 100, "A", 'text-anchor="middle"')
+    ? `<circle cx="320" cy="95" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>` + text(320, 100, "A", 'text-anchor="middle"')
     : d.meter === "voltmeter"
       ? `<circle cx="430" cy="205" r="22" class="meter"/>` + text(430, 210, "V", 'text-anchor="middle"')
       : "";
@@ -141,6 +141,6 @@ export function renderPhysicsDiagram(input: PhysicsDiagram): { svg: string; alt:
     "atomic-transition": () => renderAtomic(input as Extract<PhysicsDiagram,{type:"atomic-transition"}>),
   };
   const body = drawings[input.type]();
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Physics diagram" style="max-width:100%;height:auto"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#202a36"/></marker><marker id="axis" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0 0 L5 3 L0 6" fill="#303b49"/></marker></defs><style>.object{fill:#fff;stroke:#202a36;stroke-width:2.2}.stroke{stroke:#303b49;stroke-width:2;fill:none}.meter{fill:#fff;stroke:#202a36;stroke-width:2}.lbl{font-family:Arial,sans-serif;font-size:16px;fill:#17212d}</style>${body}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Physics diagram" style="max-width:100%;height:auto"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#202a36"/></marker><marker id="axis" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0 0 L5 3 L0 6" fill="#303b49"/></marker></defs>${body}</svg>`;
   return { svg, alt: `نمودار فیزیک: ${input.type}`, viewBox: "0 0 640 360" };
 }
