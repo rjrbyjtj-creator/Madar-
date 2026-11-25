@@ -57,9 +57,9 @@ function renderIncline(d: Extract<PhysicsDiagram, {type:"inclined-plane"}>): str
 function renderPulley(d: Extract<PhysicsDiagram, {type:"pulley"}>): string {
   return line(120, 85, 520, 85, 'stroke="#303b49" stroke-width="3"') +
     line(320, 85, 320, 110, 'stroke="#303b49" stroke-width="2"') +
-    `<circle cx="320" cy="132" r="22" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
-    `<path d="M298 132 A22 22 0 0 1 342 132 V245 M298 132 V245" stroke="#303b49" stroke-width="2" fill="none"/>` +
-    `<rect x="276" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/><rect x="320" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
+    \`<circle cx="320" cy="132" r="22" fill="#fff" stroke="#202a36" stroke-width="2.2"/>\` +
+    \`<path d="M298 132 A22 22 0 0 1 342 132 V245 M298 132 V245" stroke="#303b49" stroke-width="2" fill="none"/>\` +
+    \`<rect x="276" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/><rect x="320" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/>\` +
     text(298, 271, d.leftMass, 'text-anchor="middle"') + text(342, 271, d.rightMass, 'text-anchor="middle"') +
     (d.showTension ? text(276, 185, "T") + text(350, 185, "T") : "");
 }
@@ -82,18 +82,34 @@ function renderSpring(d: Extract<PhysicsDiagram, {type:"spring"}>): string {
     text(massX, 181, d.massLabel, 'text-anchor="middle"') + arrow(massX, 115, d.displacement === "right" ? massX - 55 : massX + 55, 115, "F");
 }
 function renderCircuit(d: Extract<PhysicsDiagram, {type:"circuit"}>): string {
-  const meter = d.meter === "ammeter"
-    ? `<circle cx="320" cy="95" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>` + text(320, 100, "A", 'text-anchor="middle"')
-    : d.meter === "voltmeter"
-      ? line(285, 95, 285, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(285, 205, 408, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(452, 205, 355, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 205, 355, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + "<circle cx=\"430\" cy=\"205\" r=\"22\" fill=\"#fff\" stroke=\"#202a36\" stroke-width=\"2\"/>" + text(430, 210, "V", 'text-anchor="middle"')
-      : "";
-  return line(130, 95, 285, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 95, 510, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
-    line(130, 95, 130, 245, 'stroke="#303b49" stroke-width="2" fill="none"') + line(510, 95, 510, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
+  const top = d.meter === "ammeter"
+    ? line(130, 95, 238, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      line(282, 95, 365, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      line(435, 95, 510, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      \`<circle cx="260" cy="95" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>\` +
+      text(260, 100, "A", 'text-anchor="middle"') +
+      \`<rect x="365" y="77" width="70" height="36" fill="#fff" stroke="#202a36" stroke-width="2.2"/>\` +
+      text(400, 100, d.resistanceLabel, 'text-anchor="middle"')
+    : line(130, 95, 285, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      line(355, 95, 510, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      \`<rect x="285" y="77" width="70" height="36" fill="#fff" stroke="#202a36" stroke-width="2.2"/>\` +
+      text(320, 100, d.resistanceLabel, 'text-anchor="middle"');
+  const meter = d.meter === "voltmeter"
+    ? line(285, 95, 285, 205, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      line(285, 205, 408, 205, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      line(452, 205, 355, 205, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      line(355, 205, 355, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
+      \`<circle cx="430" cy="205" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>\` +
+      text(430, 210, "V", 'text-anchor="middle"')
+    : "";
+  return top +
+    line(130, 95, 130, 172, 'stroke="#303b49" stroke-width="2" fill="none"') +
+    line(130, 184, 130, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
+    line(510, 95, 510, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
     line(130, 245, 510, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
-    line(285, 95, 355, 95, 'stroke="#303b49" stroke-width="2"') +
-    `<rect x="285" y="77" width="70" height="36" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` + text(320, 100, d.resistanceLabel, 'text-anchor="middle"') +
-    line(130, 165, 130, 190, 'stroke="#303b49" stroke-width="3"') + line(118, 172, 142, 172, 'stroke="#303b49" stroke-width="2"') +
-    line(122, 184, 138, 184, 'stroke="#303b49" stroke-width="4"') + text(154, 182, d.voltageLabel) + meter;
+    line(118, 172, 142, 172, 'stroke="#303b49" stroke-width="2"') +
+    line(122, 184, 138, 184, 'stroke="#303b49" stroke-width="4"') +
+    text(154, 182, d.voltageLabel) + meter;
 }
 function renderCoulomb(d: Extract<PhysicsDiagram, {type:"coulomb"}>): string {
   const left = d.attraction ? "#2876b9" : "#202a36";
