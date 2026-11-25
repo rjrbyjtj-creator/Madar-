@@ -17,7 +17,7 @@ import { generateCloudflareReply, CLOUDFLARE_MODEL_IDS } from "../services/cloud
 import { generateHuggingFaceReply, HUGGINGFACE_MODEL_IDS } from "../services/huggingface.service.js";
 import { generateCoarenaReply } from "../services/coarena.service.js";
 import { getTextbookPdfAttachment, retrieveTextbookContext } from "../services/textbook-knowledge.service.js";
-import { renderExamPaperHtml } from "../services/exam-paper-template.service.js";
+import { renderExamPaperHtml, renderExamAnswerKeyHtml } from "../services/exam-paper-template.service.js";
 import { physicsDiagramSchema, renderPhysicsDiagram } from "../services/physics-diagram.service.js";
 import { retrieveQuestionBankContext } from "../services/question-bank-store.service.js";
 import { getExamSourceLibrary } from "../services/exam-source-library.service.js";
@@ -145,6 +145,11 @@ function getRequestedExamGrade(message: string, previousUserMessages = "", profi
   return "تعیین‌نشده";
 }
 
+function isDetailedAnswerKeyRequested(message: string): boolean {
+  const normalized = normalizeExamIntentText(message);
+  return /(?:پاسخ\s*نامه|پاسخنامه|کلید\s*پاسخ|جواب\s*نامه|حل\s*تشریحی|راه\s*حل|روش\s*حل)/i.test(normalized);
+}
+
 function normalizeExamNumber(value: unknown): unknown {
   if (typeof value !== "string") return value;
   const normalized = value
@@ -184,6 +189,11 @@ const generatedExamSchema = z.object({
     figureSvg: z.string().max(16000).optional(),
     figureAlt: z.string().trim().max(180).optional(),
   })).min(1).max(30),
+  answerKey: z.array(z.object({
+    number: examInteger(1, 30),
+    answer: z.string().trim().min(1).max(2000),
+    solution: z.string().trim().min(1).max(8000),
+  })).min(1).max(30).optional(),
 });
 
 
@@ -394,6 +404,10 @@ async function generateExamInStages(
   if (!latest) throw new Error("پیام آزمون پیدا نشد.");
   const baseInstructions = context.articleWriterContext ?? "";
   const languageExamMode = /(?:زبان|انگلیسی|english|زبان انگلیسی)/i.test(latest.content);
+  const requestedAnswerKey = isDetailedAnswerKeyRequested(latest.content);
+  const answerKeyInstructions = requestedAnswerKey
+    ? "پاسخ‌نامه تشریحی نیز صریحاً درخواست شده است. در خروجی JSON علاوه بر questions، آرایه answerKey با دقیقاً یک عضو برای هر سؤال و با همان شماره‌های ۱ تا " + requestedQuestionCount + " تولید کن. هر عضو باید number، answer (پاسخ نهایی روشن) و solution (راه‌حل مرحله‌به‌مرحله، استدلال، فرمول‌ها و محاسبات لازم) داشته باشد. پاسخ هر سؤال را مستقل و دقیق بنویس، نتیجه را با جایگذاری یا کنترل معقول بررسی کن و اگر سؤال محاسباتی است تمام مراحل را نشان بده. برای سؤال مفهومی، توضیح علمی کامل و متناسب با سطح پایه ارائه کن. پاسخ‌ها و راه‌حل‌ها را هرگز داخل متن سؤال‌ها قرار نده؛ آن‌ها فقط در answerKey باشند."
+    : "کاربر پاسخ‌نامه نخواسته است؛ آرایه answerKey تولید نکن و پاسخ یا راه‌حل را در برگه آزمون قرار نده.";
   const languageExamInstructions = languageExamMode ? [
     "قالب اختصاصی آزمون زبان انگلیسی همیشه فعال است و کاربر نباید برای صفحه‌آرایی، جهت متن یا تنوع سؤال‌ها دستور جداگانه بدهد. حتی اگر درخواست کوتاه باشد (مثلاً «از فصل اول زبان دوازدهم آزمون بگیر»)، همین استانداردها را خودکار اجرا کن.",
     "ابتدا پایه، کتاب، فصل/درس و محدوده درخواستی را از پیام کاربر و نقشه واقعی منبع تشخیص بده. فقط واژگان، ساختارهای دستوری، مکالمه‌ها و موضوعات همان محدوده را بسنج؛ از مطالب فصل‌های دیگر یا دانش عمومی خارج از کتاب سؤال نساز. اگر محدوده دقیق در منبع پیدا نشد، آن را حدس نزن و محدودیت را روشن کن.",
@@ -460,6 +474,7 @@ async function generateExamInStages(
     "استاندارد قطعی نگارش ریاضی و فرمول‌ها: تمام عبارت‌های ریاضی را با LaTeX معتبر بنویس؛ برای فرمول درون‌خطی از \\( ... \\) و برای فرمول مستقل از \\[ ... \\] استفاده کن. ماتریس‌ها را الزاماً با کروشه مربعی و محیط \\begin{bmatrix} ... \\end{bmatrix} بنویس؛ از pmatrix و پرانتز گرد برای قاب ماتریس استفاده نکن. دترمینان را با vmatrix بنویس. برای دستگاه معادلات از aligned یا cases متناسب با ساختار استفاده کن. کسرها را با \\frac، رادیکال را با \\sqrt، توان و اندیس را با آکولادهای دقیق مانند x^{2} و a_{n} بنویس. نمادها و عملگرهای استاندارد را دقیق به‌کار ببر: \\times، \\cdot، \\div، \\leq، \\geq، \\neq، \\approx، \\in، \\notin، \\subseteq، \\cup، \\cap، \\emptyset، \\Rightarrow. بردار، زاویه، درجه، قدرمطلق، اندازه، مختصات و واحدها را با نماد درست و بدون جایگزینی تقریبی نمایش بده. اعداد اعشاری، علامت منفی، پرانتزهای داخل عبارت و جداکننده‌های ریاضی را دقیق و بدون جابه‌جایی بنویس. متن فارسی راست‌به‌چپ و فرمول‌ها چپ‌به‌راست باشند. هیچ فرمولی را صرفاً برای زیبایی تغییر نده و داده یا نماد جدید اختراع نکن. قبل از خروجی، توازن آکولادها، باز و بسته بودن محیط‌های LaTeX، نام محیط‌ها و تطابق نمادها با صورت سؤال را بررسی کن.",
     languageExamInstructions,
     "تعداد سؤال‌های اصلی را دقیقاً " + requestedQuestionCount + " عدد بساز؛ نه کمتر و نه بیشتر. نمره کل آزمون دقیقاً " + requestedTotalScore + " است و مقدار totalScore و مجموع score تمام سؤال‌های اصلی باید دقیقاً همین عدد باشد. قبل از خروجی، بارم تک‌تک سؤال‌ها را جمع بزن و اختلاف را برطرف کن؛ هیچ گرد کردن یا تغییر مقیاس خودکار انجام نده. تعداد سؤال را با تعداد زیربخش‌ها اشتباه نگیر. تمام قواعد قالب JSON، بارم‌بندی، سطح پایه، استقلال سؤال‌ها و استاندارد علمی را رعایت کن. برای هر زیربخش بارم جداگانه را داخل متن همان زیربخش به شکل «(۰٫۲۵ نمره)» یا «(۰٫۵ نمره)» بنویس. جمع زیربخش‌ها باید دقیقاً با بارم سؤال اصلی برابر باشد.",
+    answerKeyInstructions,
     "فقط JSON نهایی با ساختار تعیین‌شده برگردان؛ هیچ توضیح بیرون JSON ننویس."
   ].join("\n")), {
     ...context,
@@ -484,7 +499,8 @@ async function generateExamInStages(
     "پیش‌نویس مرحله دوم:\n" + draft.text,
     "اکنون مانند دبیر ممتحن سخت‌گیر، تمام سؤال‌ها را یک‌به‌یک حل و بررسی کن: انطباق با مبحث و کتاب، شباهت بیش از حد به نمونه بانک، وضوح صورت سؤال، کفایت داده‌ها، یکتایی پاسخ، صحت علمی و محاسبات، واحدها، سطح دشواری، تناسب بارم با زمان و جمع بارم هر زیربخش.",
     "هر سؤال ضعیف، تکراری، مبهم یا دارای داده ناکافی را اصلاح یا جایگزین کن. بارم‌ها را از نو منطقی بررسی کن؛ همه سؤال‌ها را هم‌نمره نکن و اختلاف بارم باید متناسب با زمان و دشواری باشد.",
-    "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید دقیقاً " + requestedQuestionCount + " باشد؛ شماره‌ها از ۱ تا " + requestedQuestionCount + " پیوسته باشند؛ totalScore و مجموع score سؤال‌ها باید دقیقاً " + requestedTotalScore + " باشد؛ بارم هر سؤال با مجموع بارم زیربخش‌های نوشته‌شده در متن همان سؤال برابر باشد و همه بارم‌ها مضرب ۰٫۲۵ باشند. پیش از پاسخ، مجموع را با محاسبه عددی کنترل کن و اگر حتی ۰٫۲۵ اختلاف دارد اصلاح کن. هیچ پاسخ‌نامه‌ای در برگه قرار نده."
+    answerKeyInstructions,
+    "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید دقیقاً " + requestedQuestionCount + " باشد؛ شماره‌ها از ۱ تا " + requestedQuestionCount + " پیوسته باشند؛ totalScore و مجموع score سؤال‌ها باید دقیقاً " + requestedTotalScore + " باشد؛ بارم هر سؤال با مجموع بارم زیربخش‌های نوشته‌شده در متن همان سؤال برابر باشد و همه بارم‌ها مضرب ۰٫۲۵ باشند. پیش از پاسخ، مجموع را با محاسبه عددی کنترل کن و اگر حتی ۰٫۲۵ اختلاف دارد اصلاح کن. هیچ پاسخ‌نامه‌ای در برگه آزمون قرار نده؛ در صورت درخواست، پاسخ‌ها فقط در answerKey باشند."
   ].join("\n")), {
     ...context,
     availableFilesContext: undefined,
@@ -1277,6 +1293,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
             );
 
   let examPaper: { filename: string; html: string } | undefined;
+  let answerKeyPaper: { filename: string; html: string } | undefined;
   let reply = aiResult.text;
   if (examGenerationMode) {
     try {
@@ -1310,6 +1327,13 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         const sequential = questions.every((question, index) => question.number === index + 1);
         if (!sequential) throw new Error("شماره سؤال‌ها باید از ۱ تا تعداد سؤال‌ها پیوسته و بدون تکرار باشد.");
         validateQuestionRubric(questions);
+        const answerKey = validated.data.answerKey ?? [];
+        if (isDetailedAnswerKeyRequested(examPromptMessage)) {
+          const answerNumbers = answerKey.map((item) => item.number).sort((left, right) => left - right);
+          if (answerKey.length !== questions.length || answerNumbers.some((number, index) => number !== index + 1)) {
+            throw new Error("پاسخ‌نامه تشریحی باید برای تمام سؤال‌ها، دقیقاً با شماره‌گذاری برگه آزمون تولید شود.");
+          }
+        }
         if (Math.abs(sum - targetTotalScore) > 0.001 || Math.abs(validated.data.totalScore - targetTotalScore) > 0.001) {
           console.error("[EXAM] score total mismatch:", { sum, declared: validated.data.totalScore, targetTotalScore });
           throw new Error("جمع بارم آزمون دقیقاً برابر نمره کل درخواستی نیست؛ از تغییر مقیاس خودکار بارم جلوگیری شد.");
@@ -1318,9 +1342,14 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         const html = await renderExamPaperHtml(examData);
         const slug = validated.data.subject.replace(/[^\p{L}\p{N}-]+/gu, "-").slice(0, 36) || "exam";
         examPaper = { filename: "madar-" + slug + "-exam.html", html };
+        if (isDetailedAnswerKeyRequested(examPromptMessage)) {
+          const answerHtml = await renderExamAnswerKeyHtml(examData, validated.data.answerKey ?? []);
+          answerKeyPaper = { filename: "madar-" + slug + "-answer-key.html", html: answerHtml };
+        }
         reply = "آزمون **" + validated.data.subject + "** با " + validated.data.questions.length +
           " سؤال تشریحی آماده شد. بارم کل: " + validated.data.totalScore +
-          " نمره. پیش‌نمایش و دریافت فایل آماده است.\n\nاین نسخه اولیه است؛ قبل از استفاده رسمی، سؤال‌ها و بارم‌بندی را با دبیر بررسی کن.";
+          " نمره. " + (answerKeyPaper ? "برگه آزمون و پاسخ‌نامه تشریحی در دو فایل جداگانه آماده‌اند." : "فایل برگه آزمون آماده است.") +
+          "\n\nاین نسخه اولیه است؛ قبل از استفاده رسمی، سؤال‌ها، بارم‌بندی و پاسخ‌ها را با دبیر بررسی کن.";
       }
     } catch (error) {
       console.error("[EXAM] generation/validation failed:", error instanceof Error ? error.message : error);
@@ -1364,7 +1393,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     reply,
     ...(planProposal ? { planProposal } : {}),
     ...(planDeletionProposal ? { planDeletionProposal } : {}),
-    ...(examPaper ? { examPaper } : {}),
+    ...(examPaper ? { examPaper } : {}), ...(answerKeyPaper ? { answerKeyPaper } : {}),
     model: examGenerationMode && (conversationDocuments.length || textbookPdfAttachment) ? "gemini" : selectedProvider,
     conversationId,
     title,
@@ -1412,6 +1441,7 @@ export async function getConversation(req: Request, res: Response): Promise<void
         content: item.content,
         createdAt: item.createdAt,
         ...(item.examPaper ? { examPaper: item.examPaper } : {}),
+        ...(item.answerKeyPaper ? { answerKeyPaper: item.answerKeyPaper } : {}),
         ...(item.attachment ? { attachment: { ...item.attachment, url: "/ai/attachments/" + String(item.attachment.id) } } : {}),
       })),
       documents: (conversation.documents ?? []).map((doc) => ({ attachmentId: doc.attachmentId ? String(doc.attachmentId) : null, fileName: doc.fileName, mimeType: doc.mimeType })),
