@@ -62,8 +62,8 @@ function renderPulley(d: Extract<PhysicsDiagram, {type:"pulley"}>): string {
   return line(120, 85, 520, 85, 'stroke="#303b49" stroke-width="3"') +
     line(320, 85, 320, 110, 'stroke="#303b49" stroke-width="2"') +
     `<circle cx="320" cy="132" r="22" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
-    `<path d="M298 132 V245 M342 132 V245" stroke="#303b49" stroke-width="2" fill="none"/>` +
-    `<rect x="272" y="245" width="52" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/><rect x="316" y="245" width="52" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
+    `<path d="M298 132 A22 22 0 0 0 342 132 V245 M298 132 V245" stroke="#303b49" stroke-width="2" fill="none"/>` +
+    `<rect x="276" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/><rect x="320" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
     text(298, 271, d.leftMass, 'text-anchor="middle"') + text(342, 271, d.rightMass, 'text-anchor="middle"') +
     (d.showTension ? text(276, 185, "T") + text(350, 185, "T") : "");
 }
@@ -112,13 +112,19 @@ function renderCoulomb(d: Extract<PhysicsDiagram, {type:"coulomb"}>): string {
 }
 function renderGraph(d: Extract<PhysicsDiagram, {type:"kinematics-graph"}>): string {
   const xs = d.points.map(p => p.x), ys = d.points.map(p => p.y);
-  const minX = Math.min(...xs, 0), maxX = Math.max(...xs, 1), minY = Math.min(...ys, 0), maxY = Math.max(...ys, 1);
-  const sx = (x:number) => 90 + (x-minX)/(maxX-minX || 1)*440;
-  const sy = (y:number) => 270 - (y-minY)/(maxY-minY || 1)*210;
+  let minX = Math.min(...xs, 0), maxX = Math.max(...xs, 0);
+  let minY = Math.min(...ys, 0), maxY = Math.max(...ys, 0);
+  if (maxX - minX < 1) { minX -= 0.5; maxX += 0.5; }
+  if (maxY - minY < 1) { minY -= 0.5; maxY += 0.5; }
+  const sx = (x:number) => 100 + (x-minX)/(maxX-minX)*420;
+  const sy = (y:number) => 270 - (y-minY)/(maxY-minY)*215;
+  const originX = sx(0), originY = sy(0);
   const points = d.points.map(p => `${sx(p.x)},${sy(p.y)}`).join(" ");
-  return axes() + `<polyline points="${points}" fill="none" stroke="#202a36" stroke-width="2.8" stroke-linejoin="round"/>` +
+  return line(82, originY, 555, originY, 'stroke="#303b49" stroke-width="1.5" marker-end="url(#axis)"') +
+    line(originX, 292, originX, 42, 'stroke="#303b49" stroke-width="1.5" marker-end="url(#axis)"') +
+    `<polyline points="${points}" fill="none" stroke="#202a36" stroke-width="2.8" stroke-linejoin="round"/>` +
     d.points.map(p => `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="4" fill="#202a36"/>`).join("") +
-    text(565, 320, d.xLabel) + text(52, 40, d.yLabel);
+    text(560, originY - 7, d.xLabel) + text(originX + 8, 38, d.yLabel);
 }
 function renderAtomic(d: Extract<PhysicsDiagram, {type:"atomic-transition"}>): string {
   if (d.from >= d.levels.length || d.to >= d.levels.length || d.from === d.to) throw new Error("گذار اتمی باید بین دو تراز متفاوت باشد.");
