@@ -526,7 +526,7 @@ async function generateExamInStages(
 
         // Only adjust questions whose text has no separately printed subpart rubric.
         // This keeps any explicit (الف/ب/...) marks consistent with their parent question.
-        const markPattern = /\\(?\\s*([0-9۰-۹٠-٩]+(?:[٫.,/][0-9۰-۹٠-٩]+)?)\\s*(?:نمره|امتیاز)\\s*\\)?/g;
+        const markPattern = /\(?\s*([0-9۰-۹٠-٩]+(?:[٫.,/][0-9۰-۹٠-٩]+)?)\s*(?:نمره|امتیاز)\s*\)?/g;
         const eligible = candidateQuestions
           .map((question, index) => ({ question: question as Record<string, unknown>, index }))
           .filter(({ question }) =>
