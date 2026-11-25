@@ -48,7 +48,7 @@ function renderIncline(d: Extract<PhysicsDiagram, {type:"inclined-plane"}>): str
   const bx = 330, by = y0 - Math.tan(rad) * (bx - x0) - 27;
   let out = line(x0, y0, x1, y1, 'stroke="#303b49" stroke-width="3"') +
     line(x0, y0, x1, y0, 'stroke="#8793a2" stroke-width="1.4"') +
-    `<g transform="translate(${bx} ${by}) rotate(-${d.angleDeg})"><rect x="-25" y="-25" width="50" height="50" class="object"/><text x="0" y="5" class="lbl" text-anchor="middle">${esc(d.blockLabel)}</text></g>` +
+    `<g transform="translate(${bx} ${by}) rotate(-${d.angleDeg})"><rect x="-25" y="-25" width="50" height="50" fill="#fff" stroke="#202a36" stroke-width="2.2"/><text x="0" y="5" fill="#17212d" font-family="Arial,sans-serif" font-size="16" text-anchor="middle">${esc(d.blockLabel)}</text></g>` +
     text(130, 268, `${d.angleDeg}°`);
   d.forces.forEach((f) => {
     const a = f.angleDeg * Math.PI / 180;
@@ -59,16 +59,16 @@ function renderIncline(d: Extract<PhysicsDiagram, {type:"inclined-plane"}>): str
 function renderPulley(d: Extract<PhysicsDiagram, {type:"pulley"}>): string {
   return line(120, 85, 520, 85, 'stroke="#303b49" stroke-width="3"') +
     line(320, 85, 320, 110, 'stroke="#303b49" stroke-width="2"') +
-    `<circle cx="320" cy="132" r="22" class="object"/>` +
+    `<circle cx="320" cy="132" r="22" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
     `<path d="M298 132 V245 M342 132 V245" stroke="#303b49" stroke-width="2" fill="none" fill="none"/>` +
-    `<rect x="272" y="245" width="52" height="42" class="object"/><rect x="316" y="245" width="52" height="42" class="object"/>` +
+    `<rect x="272" y="245" width="52" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/><rect x="316" y="245" width="52" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
     text(298, 271, d.leftMass, 'text-anchor="middle"') + text(342, 271, d.rightMass, 'text-anchor="middle"') +
     (d.showTension ? text(276, 185, "T") + text(350, 185, "T") : "");
 }
 function renderPendulum(d: Extract<PhysicsDiagram, {type:"pendulum"}>): string {
   const a = d.angleDeg * Math.PI / 180, px = 320 + Math.sin(a) * 150, py = 80 + Math.cos(a) * 150;
   return `<circle cx="320" cy="80" r="4" fill="#202a36"/>` + line(320, 80, px, py, 'stroke="#303b49" stroke-width="2.5"') +
-    `<circle cx="${px}" cy="${py}" r="20" class="object"/>` + text(px, py + 5, d.massLabel, 'text-anchor="middle"') +
+    `<circle cx="${px}" cy="${py}" r="20" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` + text(px, py + 5, d.massLabel, 'text-anchor="middle"') +
     line(320, 80, 320, 260, 'stroke="#a0a9b4" stroke-dasharray="5 5"') +
     text((320 + px) / 2 + 10, (80 + py) / 2, d.lengthLabel) + text(340, 112, `${d.angleDeg}°`);
 }
@@ -80,20 +80,20 @@ function renderSpring(d: Extract<PhysicsDiagram, {type:"spring"}>): string {
   path += `L ${end} 175`;
   return line(70, 220, 570, 220, 'stroke="#9aa4b1" stroke-width="1.5"') +
     (d.showEquilibrium ? line(equilibrium, 115, equilibrium, 250, 'stroke="#a0a9b4" stroke-dasharray="5 5"') + text(equilibrium, 270, "تعادل", 'text-anchor="middle"') : "") +
-    `<path d="${path}" fill="none" stroke="#303b49" stroke-width="2.5"/><rect x="${massX-28}" y="145" width="56" height="60" class="object"/>` +
+    `<path d="${path}" fill="none" stroke="#303b49" stroke-width="2.5"/><rect x="${massX-28}" y="145" width="56" height="60" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
     text(massX, 181, d.massLabel, 'text-anchor="middle"') + arrow(massX, 115, d.displacement === "right" ? massX - 55 : massX + 55, 115, "F");
 }
 function renderCircuit(d: Extract<PhysicsDiagram, {type:"circuit"}>): string {
   const meter = d.meter === "ammeter"
     ? `<circle cx="320" cy="95" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>` + text(320, 100, "A", 'text-anchor="middle"')
     : d.meter === "voltmeter"
-      ? `<circle cx="430" cy="205" r="22" class="meter"/>` + text(430, 210, "V", 'text-anchor="middle"')
+      ? `<circle cx="430" cy="205" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>` + text(430, 210, "V", 'text-anchor="middle"')
       : "";
-  return line(130, 95, 285, 95, 'class="stroke"') + line(355, 95, 510, 95, 'class="stroke"') +
-    line(130, 95, 130, 245, 'class="stroke"') + line(510, 95, 510, 245, 'class="stroke"') +
-    line(130, 245, 510, 245, 'class="stroke"') +
+  return line(130, 95, 285, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 95, 510, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
+    line(130, 95, 130, 245, 'stroke="#303b49" stroke-width="2" fill="none"') + line(510, 95, 510, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
+    line(130, 245, 510, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
     line(285, 95, 355, 95, 'stroke="#303b49" stroke-width="2"') +
-    `<rect x="285" y="77" width="70" height="36" class="object"/>` + text(320, 100, d.resistanceLabel, 'text-anchor="middle"') +
+    `<rect x="285" y="77" width="70" height="36" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` + text(320, 100, d.resistanceLabel, 'text-anchor="middle"') +
     line(130, 165, 130, 190, 'stroke="#303b49" stroke-width="3"') + line(118, 172, 142, 172, 'stroke="#303b49" stroke-width="2"') +
     line(122, 184, 138, 184, 'stroke="#303b49" stroke-width="4"') + text(154, 182, d.voltageLabel) + meter;
 }
