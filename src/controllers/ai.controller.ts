@@ -618,30 +618,59 @@ async function generateExamInStages(
         }
 
         for (const { question, index } of eligible) {
-          const change = (currentUnits[index] - originalUnits[index]) / 4;
+          const changeUnits = currentUnits[index] - originalUnits[index];
           question.score = currentUnits[index] / 4;
-          if (Math.abs(change) < 0.001) continue;
+          if (changeUnits === 0) continue;
 
           const questionText = question.text as string;
           const printedMarks = [...questionText.matchAll(markPattern)];
           if (!printedMarks.length) continue;
 
-          const lastMark = printedMarks[printedMarks.length - 1];
-          const previousMark = parseRubricMark(lastMark[1]);
-          const correctedMark = Math.round((previousMark + change) * 4) / 4;
-          if (!Number.isFinite(correctedMark) || correctedMark <= 0) {
-            throw new Error("تعدیل بارم زیربخش آخر سؤال " + (index + 1) + " باعث بارم نامعتبر می‌شود؛ آزمون بدون اصلاح تحویل داده نشد.");
+          const marks = printedMarks.map((match) => {
+            const value = parseRubricMark(match[1]);
+            const units = Math.round(value * 4);
+            if (!Number.isFinite(value) || value <= 0 || Math.abs(value * 4 - units) > 0.001) {
+              throw new Error("بارم چاپ‌شده یکی از زیربخش‌های سؤال " + (index + 1) + " معتبر نیست؛ آزمون بدون اصلاح تحویل داده نشد.");
+            }
+            return { match, units };
+          });
+
+          let remaining = Math.abs(changeUnits);
+          if (changeUnits > 0) {
+            marks[marks.length - 1].units += remaining;
+            remaining = 0;
+          } else {
+            // Reduce across the available subpart marks, largest first, while
+            // keeping every printed subpart strictly positive.
+            const reductionOrder = [...marks].sort((a, b) => b.units - a.units);
+            for (const mark of reductionOrder) {
+              const reducible = Math.max(0, mark.units - 1);
+              const reduction = Math.min(reducible, remaining);
+              mark.units -= reduction;
+              remaining -= reduction;
+              if (remaining === 0) break;
+            }
           }
-          const localized = String(correctedMark).replace(/\.0$/, "")
-            .replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)])
-            .replace(".", "٫");
-          const replacement = lastMark[0].replace(lastMark[1], localized);
-          const markStart = lastMark.index ?? -1;
-          if (markStart < 0) {
-            throw new Error("موقعیت بارم چاپ‌شده سؤال " + (index + 1) + " قابل تشخیص نبود.");
+          if (remaining > 0) {
+            throw new Error("کاهش بارم سؤال " + (index + 1) + " بدون صفر شدن بارم زیربخش‌ها ممکن نیست؛ آزمون بدون اصلاح تحویل داده نشد.");
           }
-          question.text = questionText.slice(0, markStart) + replacement +
-            questionText.slice(markStart + lastMark[0].length);
+
+          let updatedText = questionText;
+          for (const mark of [...marks].sort((a, b) => (b.match.index ?? 0) - (a.match.index ?? 0))) {
+            const match = mark.match;
+            const corrected = mark.units / 4;
+            const localized = String(corrected).replace(/\.0$/, "")
+              .replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)])
+              .replace(".", "٫");
+            const replacement = match[0].replace(match[1], localized);
+            const markStart = match.index ?? -1;
+            if (markStart < 0) {
+              throw new Error("موقعیت بارم چاپ‌شده سؤال " + (index + 1) + " قابل تشخیص نبود.");
+            }
+            updatedText = updatedText.slice(0, markStart) + replacement +
+              updatedText.slice(markStart + match[0].length);
+          }
+          question.text = updatedText;
         }
         record.totalScore = requestedTotalScore;
         record.questions = candidateQuestions;
