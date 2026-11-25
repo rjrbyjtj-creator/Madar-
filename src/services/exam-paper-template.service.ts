@@ -31,21 +31,50 @@ const TEMPLATE_PATH = join(process.cwd(), "src", "templates", "exam-paper.templa
 const PRINT_PAGINATION_STYLES = `
 @page { size: A4 portrait; margin: 8mm; }
 @media print {
-  html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; }
-  body { background: #fff !important; }
-  .sheet {
-    display: block !important; width: 100% !important; height: auto !important;
-    min-height: 0 !important; max-height: none !important; margin: 0 !important;
-    padding: 0 !important; overflow: visible !important; border: 0 !important;
-    border-radius: 0 !important; box-shadow: none !important;
+  html, body {
+    width: auto !important; height: auto !important; min-height: 0 !important;
+    margin: 0 !important; padding: 0 !important; overflow: visible !important;
+    background: #fff !important;
+  }
+  body { display: block !important; }
+  .bar, body::before, .del { display: none !important; }
+  main.sheet {
+    display: block !important;
+    position: static !important;
+    width: auto !important; min-width: 0 !important; max-width: none !important;
+    height: auto !important; min-height: 0 !important; max-height: none !important;
+    margin: 0 !important; padding: 0 !important; gap: 0 !important;
+    overflow: visible !important; border: 0 !important; border-radius: 0 !important;
+    box-shadow: none !important; background: #fff !important;
     break-inside: auto !important; page-break-inside: auto !important;
   }
-  #L { overflow: visible !important; break-inside: auto !important; page-break-inside: auto !important; }
-  .top, .lh, .q, .sec, .foot, .question-figure {
+  main.sheet::before { display: none !important; }
+  main.sheet > * { position: static !important; }
+  .top {
+    display: grid !important;
+    margin: 0 0 5mm !important;
     break-inside: avoid !important; page-break-inside: avoid !important;
   }
-  .q { break-after: auto !important; page-break-after: auto !important; }
-  .bar, body::before, .del { display: none !important; }
+  .lh {
+    display: grid !important;
+    break-after: avoid !important; page-break-after: avoid !important;
+  }
+  #L {
+    display: block !important; height: auto !important; min-height: 0 !important;
+    max-height: none !important; overflow: visible !important;
+    border: 1px solid #d4d4d4 !important; border-top: 0 !important;
+    break-inside: auto !important; page-break-inside: auto !important;
+  }
+  .q, .sec {
+    break-inside: avoid !important; page-break-inside: avoid !important;
+  }
+  .q { display: grid !important; }
+  .foot {
+    margin-top: 5mm !important;
+    break-inside: avoid !important; page-break-inside: avoid !important;
+  }
+  .question-figure { break-inside: avoid !important; page-break-inside: avoid !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 `;
 
@@ -211,5 +240,5 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
     questionBlocks: renderQuestionBlocks(data.questions, languageMode),
   };
   const rendered = template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
-  return rendered.replace("</head>", PRINT_PAGINATION_STYLES + "</head>");
+  return rendered.replace("</head>", "<style id=\"madar-print-pagination\">" + PRINT_PAGINATION_STYLES + "</style>\n</head>");
 }
