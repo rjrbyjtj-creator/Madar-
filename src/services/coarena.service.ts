@@ -64,8 +64,8 @@ function readProviderError(raw: string): { code: string; message: string } {
 
 function canTryAnotherKey(status: number, code: string): boolean {
   if (status === 401) return true;
+  if (code === "insufficient_quota" || code === "payment_required" || code === "insufficient_balance" || code === "rate_limit_exceeded" || code === "too_many_requests") return true;
   if (status === 403) return code === "insufficient_scope";
-    if (code === "insufficient_quota" || code === "payment_required" || code === "insufficient_balance" || code === "rate_limit_exceeded" || code === "too_many_requests") return true;
   // Each configured API key may belong to a separate Coarena account.
   // Retry quota and rate-limit errors against the remaining accounts.
   return status === 402 || status === 429;
