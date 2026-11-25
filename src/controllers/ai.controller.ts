@@ -388,6 +388,7 @@ async function generateExamInStages(
   provider: ExamProvider,
   modelId: string,
   requestedQuestionCount = 12,
+  requestedTotalScore = 20,
 ): Promise<{ text: string; planProposal?: undefined; planDeletionProposal?: undefined }> {
   const latest = messages[messages.length - 1];
   if (!latest) throw new Error("پیام آزمون پیدا نشد.");
@@ -457,7 +458,7 @@ async function generateExamInStages(
     "نقشه تحلیل مرحله اول را مبنا قرار بده و فقط بر اساس محدوده کتاب و الگوی بانک سؤال، آزمونی تازه بساز.",
     "نقشه تحلیل مرحله اول:\n" + analysis.text,
     languageExamInstructions,
-    "تعداد سؤال‌های اصلی را دقیقاً " + requestedQuestionCount + " عدد بساز؛ نه کمتر و نه بیشتر. تعداد سؤال را با تعداد زیربخش‌ها اشتباه نگیر. تمام قواعد قالب JSON، بارم‌بندی، سطح پایه، استقلال سؤال‌ها و استاندارد علمی را رعایت کن. برای هر زیربخش بارم جداگانه را داخل متن همان زیربخش به شکل «(۰٫۲۵ نمره)» یا «(۰٫۵ نمره)» بنویس. جمع زیربخش‌ها باید دقیقاً با بارم سؤال اصلی برابر باشد.",
+    "تعداد سؤال‌های اصلی را دقیقاً " + requestedQuestionCount + " عدد بساز؛ نه کمتر و نه بیشتر. نمره کل آزمون دقیقاً " + requestedTotalScore + " است و مقدار totalScore و مجموع score تمام سؤال‌های اصلی باید دقیقاً همین عدد باشد. قبل از خروجی، بارم تک‌تک سؤال‌ها را جمع بزن و اختلاف را برطرف کن؛ هیچ گرد کردن یا تغییر مقیاس خودکار انجام نده. تعداد سؤال را با تعداد زیربخش‌ها اشتباه نگیر. تمام قواعد قالب JSON، بارم‌بندی، سطح پایه، استقلال سؤال‌ها و استاندارد علمی را رعایت کن. برای هر زیربخش بارم جداگانه را داخل متن همان زیربخش به شکل «(۰٫۲۵ نمره)» یا «(۰٫۵ نمره)» بنویس. جمع زیربخش‌ها باید دقیقاً با بارم سؤال اصلی برابر باشد.",
     "فقط JSON نهایی با ساختار تعیین‌شده برگردان؛ هیچ توضیح بیرون JSON ننویس."
   ].join("\n")), {
     ...context,
@@ -481,7 +482,7 @@ async function generateExamInStages(
     "پیش‌نویس مرحله دوم:\n" + draft.text,
     "اکنون مانند دبیر ممتحن سخت‌گیر، تمام سؤال‌ها را یک‌به‌یک حل و بررسی کن: انطباق با مبحث و کتاب، شباهت بیش از حد به نمونه بانک، وضوح صورت سؤال، کفایت داده‌ها، یکتایی پاسخ، صحت علمی و محاسبات، واحدها، سطح دشواری، تناسب بارم با زمان و جمع بارم هر زیربخش.",
     "هر سؤال ضعیف، تکراری، مبهم یا دارای داده ناکافی را اصلاح یا جایگزین کن. بارم‌ها را از نو منطقی بررسی کن؛ همه سؤال‌ها را هم‌نمره نکن و اختلاف بارم باید متناسب با زمان و دشواری باشد.",
-    "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید دقیقاً " + requestedQuestionCount + " باشد؛ شماره‌ها از ۱ تا " + requestedQuestionCount + " پیوسته باشند؛ جمع بارم سؤال‌ها دقیقاً برابر totalScore باشد؛ بارم‌ها مضرب ۰٫۲۵ باشند. هیچ پاسخ‌نامه‌ای در برگه قرار نده."
+    "در خروجی فقط JSON معتبر آزمون نهایی را بده. تعداد سؤال‌های اصلی باید دقیقاً " + requestedQuestionCount + " باشد؛ شماره‌ها از ۱ تا " + requestedQuestionCount + " پیوسته باشند؛ totalScore و مجموع score سؤال‌ها باید دقیقاً " + requestedTotalScore + " باشد؛ بارم هر سؤال با مجموع بارم زیربخش‌های نوشته‌شده در متن همان سؤال برابر باشد و همه بارم‌ها مضرب ۰٫۲۵ باشند. پیش از پاسخ، مجموع را با محاسبه عددی کنترل کن و اگر حتی ۰٫۲۵ اختلاف دارد اصلاح کن. هیچ پاسخ‌نامه‌ای در برگه قرار نده."
   ].join("\n")), {
     ...context,
     availableFilesContext: undefined,
@@ -494,8 +495,88 @@ async function generateExamInStages(
     throw new Error("بازبینی نهایی آزمون ناقص بود؛ نسخه کوتاه یا ناقص به‌عنوان برگه نهایی تحویل داده نشد.");
   }
   console.info("[EXAM_PIPELINE] stage 3/3 complete", { chars: reviewed.text.length });
+
+  let finalExamText = reviewed.text;
+  try {
+    const candidate = extractExamJson(reviewed.text);
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      const record = candidate as Record<string, unknown>;
+      const candidateQuestions = Array.isArray(record.questions) ? record.questions : [];
+      const scores = candidateQuestions.map((question) => {
+        if (!question || typeof question !== "object" || Array.isArray(question)) return NaN;
+        return normalizeExamNumber((question as Record<string, unknown>).score);
+      });
+      const currentSum = scores.every((score) => typeof score === "number" && Number.isFinite(score))
+        ? scores.reduce((total, score) => total + score, 0)
+        : NaN;
+      const declaredTotal = normalizeExamNumber(record.totalScore);
+      if (
+        Number.isFinite(currentSum) &&
+        (Math.abs(currentSum - requestedTotalScore) > 0.001 ||
+          typeof declaredTotal !== "number" ||
+          Math.abs(declaredTotal - requestedTotalScore) > 0.001)
+      ) {
+        console.warn("[EXAM_PIPELINE] score reconciliation required", {
+          sum: currentSum,
+          declared: declaredTotal,
+          targetTotalScore: requestedTotalScore,
+        });
+        await updateProgress("در حال اصلاح و تطبیق جمع بارم آزمون");
+        const reconciliation = await generateExamStageWithRetry(withStage([
+          "مرحله اصلاح بارم‌بندی — فقط برای رفع اختلاف عددی آزمون.",
+          "نمره کل قطعی و درخواستی آزمون: " + requestedTotalScore + ".",
+          "مجموع فعلی بارم سؤال‌ها: " + currentSum + "؛ مقدار totalScore فعلی: " + String(declaredTotal) + ".",
+          "نسخه فعلی آزمون برای اصلاح:",
+          JSON.stringify(candidate),
+          "همین آزمون را با حفظ درس، محدوده، کیفیت علمی، متن، داده‌ها، ترتیب و تعداد سؤال‌ها اصلاح کن. فقط بارم‌ها را به‌صورت منطقی بازتوزیع کن تا مجموع score سؤال‌های اصلی و totalScore دقیقاً " + requestedTotalScore + " شود. تمام بارم‌ها باید مضرب ۰٫۲۵ باشند. اگر متن سؤال شامل بارم زیربخش‌هاست، اعداد داخل متن را نیز اصلاح کن تا مجموع زیربخش‌ها دقیقاً با score همان سؤال برابر باشد. بارم را بی‌دلیل به یک سؤال اضافه نکن و برای رسیدن به جمع کل، صحت علمی یا معنای سؤال را قربانی نکن. شماره‌ها و همه فیلدهای الزامی را حفظ کن. پیش از خروجی، جمع تمام نمره‌ها را دوباره حساب کن.",
+          "فقط JSON نهایی کامل را برگردان؛ هیچ توضیحی بیرون JSON ننویس."
+        ].join("\n")), {
+          ...context,
+          availableFilesContext: undefined,
+          requestDeadlineMs,
+          articleWriterContext: baseInstructions + "\n\nاین مرحله فقط اصلاح عددی بارم آزمون است؛ محتوای علمی سؤال‌ها را بی‌دلیل تغییر نده و جمع کل را دقیقاً برابر مقدار قطعی درخواست کن."
+        }, provider, modelId, 800, "اصلاح بارم‌بندی");
+
+        if (reconciliation.text.trim().length < 800) {
+          throw new Error("خروجی اصلاح بارم‌بندی ناقص بود.");
+        }
+        const repairedCandidate = extractExamJson(reconciliation.text);
+        if (!repairedCandidate || typeof repairedCandidate !== "object" || Array.isArray(repairedCandidate)) {
+          throw new Error("خروجی اصلاح بارم‌بندی ساختار JSON معتبر نداشت.");
+        }
+        const repairedRecord = repairedCandidate as Record<string, unknown>;
+        const repairedQuestions = Array.isArray(repairedRecord.questions) ? repairedRecord.questions : [];
+        const repairedScores = repairedQuestions.map((question) => {
+          if (!question || typeof question !== "object" || Array.isArray(question)) return NaN;
+          return normalizeExamNumber((question as Record<string, unknown>).score);
+        });
+        const repairedSum = repairedScores.every((score) => typeof score === "number" && Number.isFinite(score))
+          ? repairedScores.reduce((total, score) => total + score, 0)
+          : NaN;
+        const repairedDeclared = normalizeExamNumber(repairedRecord.totalScore);
+        console.info("[EXAM_PIPELINE] score reconciliation result", {
+          sum: repairedSum,
+          declared: repairedDeclared,
+          targetTotalScore: requestedTotalScore,
+        });
+        if (
+          !Number.isFinite(repairedSum) ||
+          Math.abs(repairedSum - requestedTotalScore) > 0.001 ||
+          typeof repairedDeclared !== "number" ||
+          Math.abs(repairedDeclared - requestedTotalScore) > 0.001
+        ) {
+          throw new Error("مدل پس از اصلاح هم نتوانست جمع بارم را دقیقاً برابر نمره کل درخواستی کند.");
+        }
+        finalExamText = reconciliation.text;
+      }
+    }
+  } catch (error) {
+    console.error("[EXAM_PIPELINE] score reconciliation failed:", error instanceof Error ? error.message : error);
+    throw error;
+  }
+
   await updateProgress("در حال صفحه‌آرایی برگه امتحان");
-  return { text: reviewed.text };
+  return { text: finalExamText };
 }
 
 function isPlannerReviewRequest(message: string): boolean {
@@ -935,6 +1016,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     : latestUserMessage;
   const requestedExamGrade = getRequestedExamGrade(examPromptMessage, examIntentContext, user.grade);
   const requestedExamQuestionCount = getRequestedExamQuestionCount(latestUserMessage, examIntentContext);
+  const requestedExamTotalScore = getRequestedExamTotalScore(latestUserMessage, examIntentContext);
   // Start one shared budget before loading/indexing/uploading exam sources.
   const examRequestDeadlineMs = examGenerationMode ? Date.now() + 9 * 60_000 : undefined;
 
@@ -1160,12 +1242,12 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       ? { text: await buildExactTodayPlanReply(user._id, parsed.data.localDate), planProposal: undefined, planDeletionProposal: undefined }
       : examGenerationMode
         ? examSourceLibrary?.hasBookPdfs && examSourceLibrary?.hasQuestionBankPdfs
-          ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"), requestedExamQuestionCount)
+          ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"), requestedExamQuestionCount, requestedExamTotalScore)
           : conversationDocuments.length || textbookPdfAttachment
             ? selectedProvider === "gemini"
-              ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, selectedGeminiModelId, requestedExamQuestionCount)
+              ? await generateExamInStages(providerMessages, examStudentContext, selectedProvider, selectedGeminiModelId, requestedExamQuestionCount, requestedExamTotalScore)
               : { text: JSON.stringify({ clarification: "برای تحلیل PDF پیوست‌شده در همین گفتگو، فعلاً باید Gemini را انتخاب کنی. برای استفاده از مدل‌های دیگر، فایل کتاب و بانک سؤال باید در کتابخانه متنیِ قابل بازیابی مدار موجود باشند." }) }
-            : await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"), requestedExamQuestionCount)
+            : await generateExamInStages(providerMessages, examStudentContext, selectedProvider, parsed.data.modelId ?? (selectedProvider === "gemini" ? selectedGeminiModelId : selectedProvider === "groq" ? env.GROQ_MODEL : selectedProvider === "openrouter" ? OPENROUTER_MODEL_IDS[0] : selectedProvider === "cloudflare" ? CLOUDFLARE_MODEL_IDS[0] : selectedProvider === "huggingface" ? HUGGINGFACE_MODEL_IDS[0] : "gemini-3-8-flash"), requestedExamQuestionCount, requestedExamTotalScore)
       : selectedProvider === "groq"
       ? await generateGroqReply(aiMessages, aiStudentContext, (parsed.data.modelId ?? env.GROQ_MODEL) as typeof GROQ_MODEL_IDS[number])
       : selectedProvider === "openrouter"
