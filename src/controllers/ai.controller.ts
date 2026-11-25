@@ -208,24 +208,60 @@ function parseRubricMark(value: string): number {
   return Number(normalized);
 }
 
-function validateQuestionRubric(questions: Array<{ number: number; text: string; score: number }>): void {
+function reconcileQuestionRubrics(
+  questions: Array<{ number: number; text: string; score: number }>,
+): Array<{ number: number; text: string; score: number }> {
   const markPattern = /\(?\s*([0-9۰-۹٠-٩]+(?:[٫.,/][0-9۰-۹٠-٩]+)?)\s*(?:نمره|امتیاز)\s*\)?/g;
-  const subpartPattern = /(?:^|\n)\s*(?:الف|ب|پ|ت|ث|ج|د)\s*[).ـ:：-]/u;
-  for (const question of questions) {
-    const marks = [...question.text.matchAll(markPattern)].map((match) => parseRubricMark(match[1]));
-    if (marks.some((mark) => !Number.isFinite(mark) || mark <= 0 || Math.abs(mark * 4 - Math.round(mark * 4)) > 0.001)) {
-      throw new Error("بارم یکی از زیربخش‌های سؤال " + question.number + " معتبر نیست.");
-    }
-    if (subpartPattern.test(question.text) && !marks.length) {
-      throw new Error("بارم زیربخش‌های سؤال " + question.number + " مشخص نشده است.");
-    }
-    if (marks.length) {
-      const sum = marks.reduce((total, mark) => total + mark, 0);
-      if (Math.abs(sum - question.score) > 0.001) {
-        throw new Error("جمع بارم زیربخش‌های سؤال " + question.number + " با بارم سؤال اصلی برابر نیست.");
+  const subpartLinePattern = /^\s*(?:الف|ب|پ|ت|ث|ج|د|ذ|ر|ز|ژ|س|ش|ص|ض|ط|ظ|ع|غ|ف|ق|ک|گ|ل|م|ن|و|ه|ی)\s*[).ـ:：-]/u;
+  return questions.map((question) => {
+    const lines = question.text.split("\n");
+    const subpartIndexes = lines
+      .map((line, index) => subpartLinePattern.test(line) ? index : -1)
+      .filter((index) => index >= 0);
+    if (!subpartIndexes.length) return question;
+
+    const rubricMarks: Array<{ lineIndex: number; value: number; match: RegExpMatchArray }> = [];
+    for (const lineIndex of subpartIndexes) {
+      const matches = [...lines[lineIndex].matchAll(markPattern)];
+      if (matches.length !== 1) {
+        throw new Error("برای هر زیربخش سؤال " + question.number + " باید دقیقاً یک بارم مستقل درج شود.");
       }
+      const match = matches[0];
+      const value = parseRubricMark(match[1]);
+      if (!Number.isFinite(value) || value <= 0 || Math.abs(value * 4 - Math.round(value * 4)) > 0.001) {
+        throw new Error("بارم یکی از زیربخش‌های سؤال " + question.number + " معتبر نیست.");
+      }
+      rubricMarks.push({ lineIndex, value, match });
     }
-  }
+
+    const currentSum = rubricMarks.reduce((total, item) => total + item.value, 0);
+    const delta = Math.round((question.score - currentSum) * 4) / 4;
+    if (Math.abs(delta) > 0.001) {
+      // Reconcile the final subpart's printed mark with the parent question score.
+      // The change is limited to a quarter-point increment and never permits zero/negative marks.
+      const last = rubricMarks[rubricMarks.length - 1];
+      const corrected = last.value + delta;
+      if (corrected <= 0 || Math.abs(corrected * 4 - Math.round(corrected * 4)) > 0.001) {
+        throw new Error("بارم زیربخش‌های سؤال " + question.number + " با بارم سؤال اصلی قابل اصلاح ایمن نیست.");
+      }
+      const line = lines[last.lineIndex];
+      const original = last.match[0];
+      const numeric = last.match[1];
+      const normalized = String(corrected).replace(/\.0$/, "");
+      const localized = normalized.replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)]).replace(".", "٫");
+      const updatedMark = original.replace(numeric, localized);
+      lines[last.lineIndex] = line.replace(original, updatedMark);
+      console.warn("[EXAM] reconciled subpart rubric", {
+        question: question.number,
+        previousSubpartTotal: currentSum,
+        parentScore: question.score,
+        adjustedSubpart: last.lineIndex + 1,
+        previousMark: last.value,
+        correctedMark: corrected,
+      });
+    }
+    return { ...question, text: lines.join("\n") };
+  });
 }
 
 function parseExamJsonCandidate(candidate: string): unknown {
@@ -1318,7 +1354,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         const sum = validated.data.questions.reduce((total, question) => total + question.score, 0);
         if (sum <= 0) throw new Error("مجموع بارم سؤال‌ها باید بیشتر از صفر باشد.");
         const targetTotalScore = getRequestedExamTotalScore(latestUserMessage, examIntentContext);
-        const questions = validated.data.questions.map(({ figureSpec, ...question }) => {
+        let questions = validated.data.questions.map(({ figureSpec, ...question }) => {
           if (!figureSpec) return question;
           const rendered = renderPhysicsDiagram(figureSpec);
           return { ...question, figureSvg: rendered.svg, figureAlt: question.figureAlt || rendered.alt };
@@ -1328,7 +1364,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
         }
         const sequential = questions.every((question, index) => question.number === index + 1);
         if (!sequential) throw new Error("شماره سؤال‌ها باید از ۱ تا تعداد سؤال‌ها پیوسته و بدون تکرار باشد.");
-        validateQuestionRubric(questions);
+        questions = reconcileQuestionRubrics(questions);
         const answerKey = validated.data.answerKey ?? [];
         if (isDetailedAnswerKeyRequested(examPromptMessage)) {
           const answerNumbers = answerKey.map((item) => item.number).sort((left, right) => left - right);
