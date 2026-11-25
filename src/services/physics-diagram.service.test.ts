@@ -23,6 +23,8 @@ test("renders every supported physics diagram as a self-contained SVG", () => {
     assert.match(result.svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
     assert.match(result.svg, /<\/svg>$/);
     assert.match(result.svg, /viewBox="0 0 640 360"/);
+    assert.match(result.svg, /id="arrow"/);
+    assert.match(result.svg, /id="axis"/);
     assert.ok(result.alt.length > 0);
   }
 });
@@ -43,6 +45,7 @@ test("places an ammeter in series without overlapping the resistor", () => {
   const { svg } = renderPhysicsDiagram(parsed);
   assert.match(svg, /<circle cx="260" cy="95" r="22"/);
   assert.match(svg, /<rect x="365" y="77" width="70"/);
+  assert.doesNotMatch(svg, /<rect x="285" y="77" width="70".*<circle cx="260"/);
 });
 
 test("places a voltmeter on a parallel branch", () => {
