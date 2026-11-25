@@ -65,8 +65,9 @@ function readProviderError(raw: string): { code: string; message: string } {
 function canTryAnotherKey(status: number, code: string): boolean {
   if (status === 401) return true;
   if (status === 403) return code === "insufficient_scope";
-  // Coarena has both per-key and account-wide limits. Trying the other keys
-  // handles per-key throttling; account-wide daily limits will still reject them.
+    if (code === "insufficient_quota" || code === "payment_required" || code === "insufficient_balance" || code === "rate_limit_exceeded" || code === "too_many_requests") return true;
+  // Each configured API key may belong to a separate Coarena account.
+  // Retry quota and rate-limit errors against the remaining accounts.
   return status === 402 || status === 429;
 }
 
@@ -78,7 +79,7 @@ function throwCoarenaError(status: number, code: string): never {
     throw new AppError(503, "COARENA_ACCESS_DENIED", "کلیدهای Coarena دسترسی لازم برای فراخوانی مدل را ندارند.");
   }
   if (status === 402 || code === "insufficient_quota" || code === "payment_required" || code === "insufficient_balance") {
-    throw new AppError(429, "COARENA_QUOTA_EXHAUSTED", "سهمیه روزانه یا اعتبار حساب Coarena تمام شده است. سهمیه این سرویس بین کلیدهای یک حساب مشترک است و با تعویض کلید افزایش پیدا نمی‌کند.");
+    throw new AppError(429, "COARENA_QUOTA_EXHAUSTED", "سهمیه یا اعتبار تمام حساب‌های تنظیم‌شده Coarena به پایان رسیده است؛ یا همه حساب‌ها فعلاً محدود شده‌اند.");
   }
   if (status === 429) {
     throw new AppError(429, "COARENA_RATE_LIMITED", "محدودیت تعداد درخواست Coarena فعال شده است. کمی بعد دوباره تلاش کن.");
