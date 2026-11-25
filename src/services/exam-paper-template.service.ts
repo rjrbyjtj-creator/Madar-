@@ -267,7 +267,7 @@ export async function renderExamAnswerKeyHtml(data: ExamPaperData, answers: Exam
     examDate: escapeHtml(data.examDate ?? ""),
     questionBlocks: renderAnswerKeyBlocks(data, answers, languageMode),
   };
-  let rendered = template.replace(/\\{\\{([a-zA-Z]+)\\}\\}/g, (_match, key: string) => values[key] ?? "");
+    let rendered = template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
   rendered = rendered
     .replace("<span class='kicker'>آزمون کلاسی</span>", "<span class='kicker'>پاسخ‌نامه تشریحی</span>")
     .replace("<span>شرح سؤال</span>", "<span>پاسخ و راه‌حل</span>")
