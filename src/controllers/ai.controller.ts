@@ -119,6 +119,32 @@ function getRequestedExamQuestionCount(message: string, previousUserMessages = "
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 30 ? parsed : 12;
 }
 
+function getRequestedExamGrade(message: string, previousUserMessages = "", profileGrade?: string): string {
+  const normalizeDigits = (value: string) => normalizeExamIntentText(value)
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
+  const gradeLabels: Record<string, string> = {
+    "10": "دهم", "11": "یازدهم", "12": "دوازدهم",
+    "دهم": "دهم", "یازدهم": "یازدهم", "دوازدهم": "دوازدهم",
+  };
+
+  for (const candidate of [message, ...previousUserMessages.split("\n").reverse()]) {
+    const normalized = normalizeDigits(candidate);
+    const explicit = normalized.match(/(?:پایه|کلاس)\s*(دهم|یازدهم|دوازدهم|10|11|12)/u);
+    const named = normalized.match(/(?:^|[^\p{L}])(دهم|یازدهم|دوازدهم)(?=$|[^\p{L}])/u);
+    const match = explicit?.[1] ?? named?.[1];
+    if (match) return gradeLabels[match] ?? match;
+  }
+
+  const profile = typeof profileGrade === "string" ? normalizeDigits(profileGrade).trim() : "";
+  if (profile) {
+    const profileMatch = profile.match(/(?:پایه\s*)?(دهم|یازدهم|دوازدهم|10|11|12)/u);
+    if (profileMatch) return gradeLabels[profileMatch[1]] ?? profileMatch[1];
+    return profileGrade!.trim();
+  }
+  return "تعیین‌نشده";
+}
+
 function normalizeExamNumber(value: unknown): unknown {
   if (typeof value !== "string") return value;
   const normalized = value
@@ -907,6 +933,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const examPromptMessage = previousExamRequest
     ? "درخواست اصلی آزمون و محدودیت‌های آن:\n" + previousExamRequest + "\n\nپیام تکمیلی فعلی دانش‌آموز:\n" + latestUserMessage
     : latestUserMessage;
+  const requestedExamGrade = getRequestedExamGrade(examPromptMessage, examIntentContext, user.grade);
   const requestedExamQuestionCount = getRequestedExamQuestionCount(latestUserMessage, examIntentContext);
   // Start one shared budget before loading/indexing/uploading exam sources.
   const examRequestDeadlineMs = examGenerationMode ? Date.now() + 9 * 60_000 : undefined;
@@ -1084,6 +1111,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
     articleWriterContext: examGenerationMode ? [
       "حالت ساخت برگه آزمون فعال است. خروجی نهایی فقط یک JSON معتبر مطابق ساختار تعیین‌شده باشد؛ هیچ سؤال، فهرست سؤال، پاسخ یا توضیح آزمون را به شکل متن چت یا Markdown بیرون JSON ننویس. این JSON در سرور به برگه رسمی قالب‌بندی‌شده تبدیل و به‌صورت فایل قابل پیش‌نمایش و ذخیره به دانش‌آموز نمایش داده می‌شود.",
       "درخواست‌های محاوره‌ای مانند «برام از کتاب ... فلان مبحث یه آزمون بساز»، «یه امتحان فایل‌شده بده»، «از این فصل آزمون بگیر» و عبارت‌های مشابه همگی درخواست ساخت برگه آزمون هستند؛ تا وقتی اطلاعات ضروری منبع یا درس مبهم نیست، سؤال‌ها را در متن چت ننویس.",
+      "پایه تحصیلی این آزمون: " + requestedExamGrade + ". در JSON نهایی کلید grade را حتماً با همین مقدار و به‌صورت رشته وارد کن؛ این فیلد اجباری است و نباید حذف یا خالی باشد. اگر مقدار «تعیین‌نشده» است، همین را ثبت کن و پایه‌ای را حدس نزن.",
       "اگر دانش‌آموز کتاب، فایل یا جزوه مشخصی را مبنا قرار داده و PDF آن پیوست است، خود PDF را بخوان و فقط از محدوده خواسته‌شده سؤال طرح کن. اگر متن بازیابی‌شده از مسیر textbooks در availableFilesContext وجود دارد، آن را مبنای سؤال‌ها قرار بده. منبع نامرتبط یا صرفاً دانش عمومی را جایگزین کتاب درخواستی نکن.",
       "اگر دانش‌آموز صریحاً یک کتاب/فایل/جزوه را مبنا قرار داده اما هیچ منبعی از همان کتاب در availableFilesContext یا پیوست‌ها موجود نیست، به‌جای ساخت آزمون حدسی فقط JSON دارای کلید clarification با یک درخواست کوتاه برای بارگذاری فایل یا مشخص‌کردن عنوان دقیق کتاب برگردان.",
       "سؤال‌ها را با نوع و سطحی که کاربر خواسته طراحی کن؛ اگر نوع را مشخص نکرد، ترکیبی متناسب با درس و مبحث انتخاب کن. در برگه فقط صورت سؤال و گزینه‌ها/داده‌های لازم باشد، نه پاسخ‌نامه یا راه‌حل.",
@@ -1162,7 +1190,14 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
       if (parsedOutput && typeof parsedOutput === "object" && "clarification" in parsedOutput) {
         reply = String((parsedOutput as { clarification: unknown }).clarification);
       } else {
-        const validated = generatedExamSchema.safeParse(parsedOutput);
+        const outputRecord = parsedOutput && typeof parsedOutput === "object" && !Array.isArray(parsedOutput)
+          ? parsedOutput as Record<string, unknown>
+          : undefined;
+        const suppliedGrade = typeof outputRecord?.grade === "string" ? outputRecord.grade.trim() : "";
+        const normalizedOutput = outputRecord
+          ? { ...outputRecord, grade: suppliedGrade || requestedExamGrade }
+          : parsedOutput;
+        const validated = generatedExamSchema.safeParse(normalizedOutput);
         if (!validated.success) {
           console.error("[EXAM] output schema issues:", JSON.stringify(validated.error.issues).slice(0, 2500));
           throw new Error("ساختار داده‌های آزمون با قالب مورد انتظار هماهنگ نبود.");
