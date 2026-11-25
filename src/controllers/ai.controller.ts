@@ -506,7 +506,7 @@ async function generateExamInStages(
         if (!question || typeof question !== "object" || Array.isArray(question)) return NaN;
         return normalizeExamNumber((question as Record<string, unknown>).score);
       });
-      const currentSum = scores.reduce((total, score) => total + Number(score), 0);
+      const currentSum = scores.reduce<number>((total, score) => total + Number(score), 0);
       const declaredTotal = normalizeExamNumber(record.totalScore);
       if (
         Number.isFinite(currentSum) &&
@@ -548,7 +548,7 @@ async function generateExamInStages(
           if (!question || typeof question !== "object" || Array.isArray(question)) return NaN;
           return normalizeExamNumber((question as Record<string, unknown>).score);
         });
-        const repairedSum = repairedScores.reduce((total, score) => total + Number(score), 0);
+        const repairedSum = repairedScores.reduce<number>((total, score) => total + Number(score), 0);
         const repairedDeclared = normalizeExamNumber(repairedRecord.totalScore);
         console.info("[EXAM_PIPELINE] score reconciliation result", {
           sum: repairedSum,
