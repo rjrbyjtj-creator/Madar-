@@ -514,56 +514,67 @@ async function generateExamInStages(
           typeof declaredTotal !== "number" ||
           Math.abs(declaredTotal - requestedTotalScore) > 0.001)
       ) {
-        console.warn("[EXAM_PIPELINE] score reconciliation required", {
-          sum: currentSum,
-          declared: declaredTotal,
-          targetTotalScore: requestedTotalScore,
-        });
-        await updateProgress("در حال اصلاح و تطبیق جمع بارم آزمون");
-        const reconciliation = await generateExamStageWithRetry(withStage([
-          "مرحله اصلاح بارم‌بندی — فقط برای رفع اختلاف عددی آزمون.",
-          "نمره کل قطعی و درخواستی آزمون: " + requestedTotalScore + ".",
-          "مجموع فعلی بارم سؤال‌ها: " + currentSum + "؛ مقدار totalScore فعلی: " + String(declaredTotal) + ".",
-          "نسخه فعلی آزمون برای اصلاح:",
-          JSON.stringify(candidate),
-          "همین آزمون را با حفظ درس، محدوده، کیفیت علمی، متن، داده‌ها، ترتیب و تعداد سؤال‌ها اصلاح کن. فقط بارم‌ها را به‌صورت منطقی بازتوزیع کن تا مجموع score سؤال‌های اصلی و totalScore دقیقاً " + requestedTotalScore + " شود. تمام بارم‌ها باید مضرب ۰٫۲۵ باشند. اگر متن سؤال شامل بارم زیربخش‌هاست، اعداد داخل متن را نیز اصلاح کن تا مجموع زیربخش‌ها دقیقاً با score همان سؤال برابر باشد. بارم را بی‌دلیل به یک سؤال اضافه نکن و برای رسیدن به جمع کل، صحت علمی یا معنای سؤال را قربانی نکن. شماره‌ها و همه فیلدهای الزامی را حفظ کن. پیش از خروجی، جمع تمام نمره‌ها را دوباره حساب کن.",
-          "فقط JSON نهایی کامل را برگردان؛ هیچ توضیحی بیرون JSON ننویس."
-        ].join("\n")), {
-          ...context,
-          availableFilesContext: undefined,
-          requestDeadlineMs,
-          articleWriterContext: baseInstructions + "\n\nاین مرحله فقط اصلاح عددی بارم آزمون است؛ محتوای علمی سؤال‌ها را بی‌دلیل تغییر نده و جمع کل را دقیقاً برابر مقدار قطعی درخواست کن."
-        }, provider, modelId, 800, "اصلاح بارم‌بندی");
+        const targetUnits = Math.round(requestedTotalScore * 4);
+        const currentUnits = scores.map((score) => Math.round(Number(score) * 4));
+        const isQuarterMark = scores.every((score) =>
+          Number.isFinite(score) && score > 0 &&
+          Math.abs(Number(score) * 4 - Math.round(Number(score) * 4)) < 0.001
+        );
+        if (!isQuarterMark || Math.abs(currentSum * 4 - Math.round(currentSum * 4)) > 0.001) {
+          throw new Error("بارم‌های تولیدشده مضرب معتبر ۰٫۲۵ نیستند و قابل اصلاح قطعی نیستند.");
+        }
 
-        if (reconciliation.text.trim().length < 800) {
-          throw new Error("خروجی اصلاح بارم‌بندی ناقص بود.");
+        // Only adjust questions whose text has no separately printed subpart rubric.
+        // This keeps any explicit (الف/ب/...) marks consistent with their parent question.
+        const markPattern = /\\(?\\s*([0-9۰-۹٠-٩]+(?:[٫.,/][0-9۰-۹٠-٩]+)?)\\s*(?:نمره|امتیاز)\\s*\\)?/g;
+        const eligible = candidateQuestions
+          .map((question, index) => ({ question: question as Record<string, unknown>, index }))
+          .filter(({ question }) =>
+            typeof question.text === "string" &&
+            ![...(question.text as string).matchAll(markPattern)].length
+          );
+        if (!eligible.length) {
+          throw new Error("برای اصلاح قطعی بارم، هیچ سؤال بدون بارم زیربخشِ چاپ‌شده وجود ندارد.");
         }
-        const repairedCandidate = extractExamJson(reconciliation.text);
-        if (!repairedCandidate || typeof repairedCandidate !== "object" || Array.isArray(repairedCandidate)) {
-          throw new Error("خروجی اصلاح بارم‌بندی ساختار JSON معتبر نداشت.");
+
+        let delta = targetUnits - currentUnits.reduce((total, units) => total + units, 0);
+        while (delta > 0) {
+          const next = [...eligible].sort((a, b) =>
+            currentUnits[a.index] - currentUnits[b.index] || a.index - b.index
+          )[0];
+          currentUnits[next.index] += 1;
+          delta -= 1;
         }
-        const repairedRecord = repairedCandidate as Record<string, unknown>;
-        const repairedQuestions = Array.isArray(repairedRecord.questions) ? repairedRecord.questions : [];
-        const repairedScores = repairedQuestions.map((question) => {
-          if (!question || typeof question !== "object" || Array.isArray(question)) return NaN;
-          return normalizeExamNumber((question as Record<string, unknown>).score);
-        });
-        const repairedSum = repairedScores.reduce<number>((total, score) => total + Number(score), 0);
-        const repairedDeclared = normalizeExamNumber(repairedRecord.totalScore);
-        console.info("[EXAM_PIPELINE] score reconciliation result", {
-          sum: repairedSum,
-          declared: repairedDeclared,
+        while (delta < 0) {
+          const next = [...eligible]
+            .filter(({ index }) => currentUnits[index] > 1)
+            .sort((a, b) =>
+              currentUnits[b.index] - currentUnits[a.index] || a.index - b.index
+            )[0];
+          if (!next) {
+            throw new Error("کاهش بارم تا نمره کل درخواستی بدون صفر شدن بارم یک سؤال ممکن نیست.");
+          }
+          currentUnits[next.index] -= 1;
+          delta += 1;
+        }
+
+        for (const { question, index } of eligible) {
+          question.score = currentUnits[index] / 4;
+        }
+        record.totalScore = requestedTotalScore;
+        record.questions = candidateQuestions;
+        const reconciledSum = currentUnits.reduce((total, units) => total + units, 0) / 4;
+        if (Math.abs(reconciledSum - requestedTotalScore) > 0.001) {
+          throw new Error("تطبیق قطعی بارم به جمع کل درخواستی نرسید.");
+        }
+        console.info("[EXAM_PIPELINE] deterministic score reconciliation complete", {
+          before: currentSum,
+          after: reconciledSum,
+          declaredBefore: declaredTotal,
           targetTotalScore: requestedTotalScore,
+          adjustedQuestions: eligible.length,
         });
-        if (
-          !Number.isFinite(repairedSum) ||
-          Math.abs(repairedSum - requestedTotalScore) > 0.001 ||
-          typeof repairedDeclared !== "number" ||
-          Math.abs(repairedDeclared - requestedTotalScore) > 0.001
-        ) {
-          throw new Error("مدل پس از اصلاح هم نتوانست جمع بارم را دقیقاً برابر نمره کل درخواستی کند.");
-        }
-        finalExamText = reconciliation.text;
+        finalExamText = JSON.stringify(record);
       }
     }
   } catch (error) {
