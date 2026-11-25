@@ -44,8 +44,10 @@ function renderFreeBody(d: Extract<PhysicsDiagram, {type:"free-body"}>): string 
   return out;
 }
 function renderIncline(d: Extract<PhysicsDiagram, {type:"inclined-plane"}>): string {
-  const rad = d.angleDeg * Math.PI / 180, x0 = 100, y0 = 280, x1 = 540, y1 = y0 - Math.tan(rad) * 330;
-  const bx = 330, by = y0 - Math.tan(rad) * (bx - x0) - 27;
+  const rad = d.angleDeg * Math.PI / 180, x0 = 100, y0 = 280;
+  const rampWidth = Math.min(440, 220 / Math.tan(rad));
+  const x1 = x0 + rampWidth, y1 = y0 - Math.tan(rad) * rampWidth;
+  const bx = x0 + rampWidth * 0.58, by = y0 - Math.tan(rad) * (bx - x0) - 27;
   let out = line(x0, y0, x1, y1, 'stroke="#303b49" stroke-width="3"') +
     line(x0, y0, x1, y0, 'stroke="#8793a2" stroke-width="1.4"') +
     `<g transform="translate(${bx} ${by}) rotate(-${d.angleDeg})"><rect x="-25" y="-25" width="50" height="50" fill="#fff" stroke="#202a36" stroke-width="2.2"/><text x="0" y="5" fill="#17212d" font-family="Arial,sans-serif" font-size="16" text-anchor="middle">${esc(d.blockLabel)}</text></g>` +
@@ -60,7 +62,7 @@ function renderPulley(d: Extract<PhysicsDiagram, {type:"pulley"}>): string {
   return line(120, 85, 520, 85, 'stroke="#303b49" stroke-width="3"') +
     line(320, 85, 320, 110, 'stroke="#303b49" stroke-width="2"') +
     `<circle cx="320" cy="132" r="22" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
-    `<path d="M298 132 V245 M342 132 V245" stroke="#303b49" stroke-width="2" fill="none" fill="none"/>` +
+    `<path d="M298 132 V245 M342 132 V245" stroke="#303b49" stroke-width="2" fill="none"/>` +
     `<rect x="272" y="245" width="52" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/><rect x="316" y="245" width="52" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
     text(298, 271, d.leftMass, 'text-anchor="middle"') + text(342, 271, d.rightMass, 'text-anchor="middle"') +
     (d.showTension ? text(276, 185, "T") + text(350, 185, "T") : "");
@@ -87,7 +89,7 @@ function renderCircuit(d: Extract<PhysicsDiagram, {type:"circuit"}>): string {
   const meter = d.meter === "ammeter"
     ? `<circle cx="320" cy="95" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>` + text(320, 100, "A", 'text-anchor="middle"')
     : d.meter === "voltmeter"
-      ? `<circle cx="430" cy="205" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>` + text(430, 210, "V", 'text-anchor="middle"')
+      ? line(285, 95, 285, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(285, 205, 408, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(452, 205, 355, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 205, 355, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + "<circle cx=\"430\" cy=\"205\" r=\"22\" fill=\"#fff\" stroke=\"#202a36\" stroke-width=\"2\"/>" + text(430, 210, "V", 'text-anchor="middle')
       : "";
   return line(130, 95, 285, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 95, 510, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
     line(130, 95, 130, 245, 'stroke="#303b49" stroke-width="2" fill="none"') + line(510, 95, 510, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
