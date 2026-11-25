@@ -30,6 +30,7 @@ function getCoarenaApiKeys(): string[] {
     env.COARENA_API_KEY_4,
     env.COARENA_API_KEY_5,
     env.COARENA_API_KEY_6,
+    env.COARENA_API_KEY_7,
   ].map((key) => key.trim()).filter(Boolean).filter((key, index, all) => all.indexOf(key) === index);
 }
 
