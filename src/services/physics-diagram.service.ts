@@ -89,7 +89,7 @@ function renderCircuit(d: Extract<PhysicsDiagram, {type:"circuit"}>): string {
   const meter = d.meter === "ammeter"
     ? `<circle cx="320" cy="95" r="22" fill="#fff" stroke="#202a36" stroke-width="2"/>` + text(320, 100, "A", 'text-anchor="middle"')
     : d.meter === "voltmeter"
-      ? line(285, 95, 285, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(285, 205, 408, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(452, 205, 355, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 205, 355, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + "<circle cx=\"430\" cy=\"205\" r=\"22\" fill=\"#fff\" stroke=\"#202a36\" stroke-width=\"2\"/>" + text(430, 210, "V", 'text-anchor="middle')
+      ? line(285, 95, 285, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(285, 205, 408, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(452, 205, 355, 205, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 205, 355, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + "<circle cx=\"430\" cy=\"205\" r=\"22\" fill=\"#fff\" stroke=\"#202a36\" stroke-width=\"2\"/>" + text(430, 210, "V", 'text-anchor="middle"')
       : "";
   return line(130, 95, 285, 95, 'stroke="#303b49" stroke-width="2" fill="none"') + line(355, 95, 510, 95, 'stroke="#303b49" stroke-width="2" fill="none"') +
     line(130, 95, 130, 245, 'stroke="#303b49" stroke-width="2" fill="none"') + line(510, 95, 510, 245, 'stroke="#303b49" stroke-width="2" fill="none"') +
