@@ -580,8 +580,8 @@ async function generateExamInStages(
           throw new Error("بارم‌های تولیدشده مضرب معتبر ۰٫۲۵ نیستند و قابل اصلاح قطعی نیستند.");
         }
 
-        // Only adjust questions whose text has no separately printed subpart rubric.
-        // This keeps any explicit (الف/ب/...) marks consistent with their parent question.
+        // Reconcile the total across all questions, then mirror each changed score
+        // in the final printed subpart mark so the visible rubric stays consistent.
         const markPattern = /\(?\s*([0-9۰-۹٠-٩]+(?:[٫.,/][0-9۰-۹٠-٩]+)?)\s*(?:نمره|امتیاز)\s*\)?/g;
         const eligible = candidateQuestions
           .map((question, index) => ({ question: question as Record<string, unknown>, index }))
@@ -589,13 +589,13 @@ async function generateExamInStages(
             Boolean(question) &&
             typeof question === "object" &&
             !Array.isArray(question) &&
-            typeof question.text === "string" &&
-            ![...(question.text as string).matchAll(markPattern)].length
+            typeof question.text === "string"
           );
         if (!eligible.length) {
-          throw new Error("برای اصلاح قطعی بارم، هیچ سؤال بدون بارم زیربخشِ چاپ‌شده وجود ندارد.");
+          throw new Error("هیچ سؤال معتبری برای تطبیق بارم کل پیدا نشد.");
         }
 
+        const originalUnits = [...currentUnits];
         let delta = targetUnits - currentUnits.reduce((total, units) => total + units, 0);
         while (delta > 0) {
           const next = [...eligible].sort((a, b) =>
@@ -618,7 +618,30 @@ async function generateExamInStages(
         }
 
         for (const { question, index } of eligible) {
+          const change = (currentUnits[index] - originalUnits[index]) / 4;
           question.score = currentUnits[index] / 4;
+          if (Math.abs(change) < 0.001) continue;
+
+          const questionText = question.text as string;
+          const printedMarks = [...questionText.matchAll(markPattern)];
+          if (!printedMarks.length) continue;
+
+          const lastMark = printedMarks[printedMarks.length - 1];
+          const previousMark = parseRubricMark(lastMark[1]);
+          const correctedMark = Math.round((previousMark + change) * 4) / 4;
+          if (!Number.isFinite(correctedMark) || correctedMark <= 0) {
+            throw new Error("تعدیل بارم زیربخش آخر سؤال " + (index + 1) + " باعث بارم نامعتبر می‌شود؛ آزمون بدون اصلاح تحویل داده نشد.");
+          }
+          const localized = String(correctedMark).replace(/\.0$/, "")
+            .replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)])
+            .replace(".", "٫");
+          const replacement = lastMark[0].replace(lastMark[1], localized);
+          const markStart = lastMark.index ?? -1;
+          if (markStart < 0) {
+            throw new Error("موقعیت بارم چاپ‌شده سؤال " + (index + 1) + " قابل تشخیص نبود.");
+          }
+          question.text = questionText.slice(0, markStart) + replacement +
+            questionText.slice(markStart + lastMark[0].length);
         }
         record.totalScore = requestedTotalScore;
         record.questions = candidateQuestions;
