@@ -79,7 +79,9 @@ function isExamGenerationRequest(message: string, previousUserMessages = ""): bo
     /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو).{0,20}(?:بساز|طراحی\s*(?:کن|بکن)|تهیه\s*کن|آماده\s*کن|درست\s*کن)/i.test(current)
   );
   if (questionSolvingIntent && !explicitCreationVerb) return false;
-  return (hasQuestionArtifact && hasCreationIntent) || numberedQuestionRequest || explicitFollowup;
+  const answerKeyFollowup = hasExamHistory && isDetailedAnswerKeyRequested(current) &&
+    /(?:همون|همان|همینو|همین\\s*رو|این\\s*آزمون|آزمون\\s*قبلی|برگه\\s*قبلی)/i.test(current);
+  return (hasQuestionArtifact && hasCreationIntent) || numberedQuestionRequest || explicitFollowup || answerKeyFollowup;
 }
 function getRequestedExamTotalScore(message: string, previousUserMessages = ""): number {
   const candidates = [message, ...previousUserMessages.split("\n").reverse()];
@@ -1035,7 +1037,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const examGenerationMode = isExamGenerationRequest(latestUserMessage, examIntentContext);
   const examReferenceFollowup = examGenerationMode &&
     latestUserMessage.length <= 180 &&
-    /(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو|با\s*همین\s*(?:شرایط|مشخصات)).{0,60}(?:بساز|طراحی|تهیه|آماده|درست\s*کن)/i.test(normalizeExamIntentText(latestUserMessage));
+    (/(?:همون|همان|همینو|همین\s*رو|اونو|اون\s*رو|با\s*همین\s*(?:شرایط|مشخصات)).{0,60}(?:بساز|طراحی|تهیه|آماده|درست\s*کن)/i.test(normalizeExamIntentText(latestUserMessage)) || (isDetailedAnswerKeyRequested(latestUserMessage) && /(?:همون|همان|همینو|همین\s*رو|این\s*آزمون|آزمون\s*قبلی|برگه\s*قبلی)/i.test(normalizeExamIntentText(latestUserMessage))));
   const previousExamRequest = examReferenceFollowup
     ? [...history].reverse().find((item) => item.role === "user" && /(?:آزمون|امتحان|برگه|نمونه\s*سوال|نمونه\s*سؤال|سوالات?|سؤالات?)/i.test(normalizeExamIntentText(item.content)))?.content
     : undefined;
@@ -1375,7 +1377,7 @@ export async function chatWithAI(req: Request, res: Response): Promise<void> {
   const attachedDocument = parsed.data.attachmentId ? await ChatAttachment.findOne({ _id: parsed.data.attachmentId, user: user._id, conversation: conversation._id }).select("_id fileName mimeType").lean() : null;
   conversation.messages.push(
     { role: "user", content: latestUserMessage, createdAt: new Date(), ...(attachedDocument ? { attachment: { id: attachedDocument._id, fileName: attachedDocument.fileName, mimeType: attachedDocument.mimeType } } : {}) },
-    { role: "model", content: reply, createdAt: new Date(), ...(examPaper ? { examPaper } : {}) },
+    { role: "model", content: reply, createdAt: new Date(), ...(examPaper ? { examPaper } : {}), ...(answerKeyPaper ? { answerKeyPaper } : {}) },
   );
   if (conversation.messages.length <= 2) {
     conversation.title = latestUserMessage.slice(0, 72);
