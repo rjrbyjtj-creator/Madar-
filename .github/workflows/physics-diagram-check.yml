@@ -1,0 +1,25 @@
+name: Physics diagram engine checks
+
+on:
+  push:
+    branches: [feat/physics-diagram-engine]
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**/*.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/physics-diagram-check.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test

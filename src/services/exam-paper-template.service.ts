@@ -67,7 +67,7 @@ const allowedSvgAttributes = new Set([
   "xmlns", "viewBox", "width", "height", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry",
   "d", "points", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray",
   "font-size", "font-family", "font-weight", "text-anchor", "dominant-baseline", "transform", "opacity",
-  "markerWidth", "markerHeight", "refX", "refY", "orient", "markerUnits", "marker-start", "marker-mid", "marker-end"
+  "markerWidth", "markerHeight", "refX", "refY", "orient", "markerUnits", "marker-start", "marker-mid", "marker-end", "id"
 ]);
 
 function sanitizeQuestionSvg(value: string): string {
@@ -95,7 +95,7 @@ function sanitizeQuestionSvg(value: string): string {
       if (![...allowedSvgAttributes].some((item) => item.toLowerCase() === normalizedName)) continue;
       if (normalizedName === "xmlns" && attrValue !== "http://www.w3.org/2000/svg") continue;
       if (normalizedName === "stroke" && attrValue.toLowerCase() !== "none") attrValue = "#111";
-      if (normalizedName === "fill" && attrValue.toLowerCase() !== "none") attrValue = "#111";
+      if (normalizedName === "fill" && !["none", "#fff", "#ffffff"].includes(attrValue.toLowerCase())) attrValue = "#111";
       if (["marker-start", "marker-mid", "marker-end"].includes(normalizedName) && !/^url\(#[a-zA-Z0-9_-]+\)$/.test(attrValue)) continue;
       if (/url\s*\(|javascript:|data:|https?:|\\/i.test(attrValue) && !["marker-start", "marker-mid", "marker-end"].includes(normalizedName)) continue;
       attrs.push(`${name}="${escapeHtml(attrValue)}"`);
