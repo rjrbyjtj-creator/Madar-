@@ -30,10 +30,6 @@ const arrow = (x1: number, y1: number, x2: number, y2: number, caption: string, 
   line(x1, y1, x2, y2, `stroke="${color}" stroke-width="2.4" marker-end="url(#arrow)"`) +
   text((x1 + x2) / 2 + 8, (y1 + y2) / 2 - 7, caption);
 
-function axes(): string {
-  return line(72, 300, 570, 300, 'stroke="#303b49" stroke-width="1.5" marker-end="url(#axis)"') +
-    line(72, 300, 72, 42, 'stroke="#303b49" stroke-width="1.5" marker-end="url(#axis)"');
-}
 function renderFreeBody(d: Extract<PhysicsDiagram, {type:"free-body"}>): string {
   const cx = 320, cy = 174;
   let out = `<rect x="286" y="140" width="68" height="68" rx="3" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` + text(cx, cy + 5, d.bodyLabel, 'text-anchor="middle"');
