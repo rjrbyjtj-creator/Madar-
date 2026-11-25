@@ -28,6 +28,28 @@ export interface ExamPaperData {
 
 const TEMPLATE_PATH = join(process.cwd(), "src", "templates", "exam-paper.template.html");
 
+const PRINT_PAGINATION_STYLES = `
+@page { size: A4 portrait; margin: 8mm; }
+@media print {
+  html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  body { background: #fff !important; }
+  .sheet {
+    display: block !important; width: 100% !important; height: auto !important;
+    min-height: 0 !important; max-height: none !important; margin: 0 !important;
+    padding: 0 !important; overflow: visible !important; border: 0 !important;
+    border-radius: 0 !important; box-shadow: none !important;
+    break-inside: auto !important; page-break-inside: auto !important;
+  }
+  #L { overflow: visible !important; break-inside: auto !important; page-break-inside: auto !important; }
+  .top, .lh, .q, .sec, .foot, .question-figure {
+    break-inside: avoid !important; page-break-inside: avoid !important;
+  }
+  .q { break-after: auto !important; page-break-after: auto !important; }
+  .bar, body::before, .del { display: none !important; }
+}
+`;
+
+
 function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -188,5 +210,6 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
     examDate: escapeHtml(data.examDate ?? ""),
     questionBlocks: renderQuestionBlocks(data.questions, languageMode),
   };
-  return template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
+  const rendered = template.replace(/\\{\\{([a-zA-Z]+)\\}\\}/g, (_match, key: string) => values[key] ?? "");
+  return rendered.replace("</head>", PRINT_PAGINATION_STYLES + "</head>");
 }
