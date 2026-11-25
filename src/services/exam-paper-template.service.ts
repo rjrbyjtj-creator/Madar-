@@ -240,5 +240,5 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
     questionBlocks: renderQuestionBlocks(data.questions, languageMode),
   };
   const rendered = template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
-  return rendered.replace("</head>", "<style id=\"madar-print-pagination\">" + PRINT_PAGINATION_STYLES + "</style>\\n</head>");
+  return rendered.replace("</head>", "<style id=\"madar-print-pagination\">" + PRINT_PAGINATION_STYLES + "</style>\n</head>");
 }
