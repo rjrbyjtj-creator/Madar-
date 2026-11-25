@@ -58,7 +58,7 @@ function renderPulley(d: Extract<PhysicsDiagram, {type:"pulley"}>): string {
   return line(120, 85, 520, 85, 'stroke="#303b49" stroke-width="3"') +
     line(320, 85, 320, 110, 'stroke="#303b49" stroke-width="2"') +
     `<circle cx="320" cy="132" r="22" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
-    `<path d="M298 132 A22 22 0 0 0 342 132 V245 M298 132 V245" stroke="#303b49" stroke-width="2" fill="none"/>` +
+    `<path d="M298 132 A22 22 0 0 1 342 132 V245 M298 132 V245" stroke="#303b49" stroke-width="2" fill="none"/>` +
     `<rect x="276" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/><rect x="320" y="245" width="44" height="42" fill="#fff" stroke="#202a36" stroke-width="2.2"/>` +
     text(298, 271, d.leftMass, 'text-anchor="middle"') + text(342, 271, d.rightMass, 'text-anchor="middle"') +
     (d.showTension ? text(276, 185, "T") + text(350, 185, "T") : "");
@@ -145,6 +145,17 @@ export function renderPhysicsDiagram(input: PhysicsDiagram): { svg: string; alt:
     "atomic-transition": () => renderAtomic(input as Extract<PhysicsDiagram,{type:"atomic-transition"}>),
   };
   const body = drawings[input.type]();
+  const labels: Record<PhysicsDiagram["type"], string> = {
+    "free-body": "نمودار جسم آزاد",
+    "inclined-plane": "سطح شیب‌دار",
+    pulley: "دستگاه قرقره",
+    pendulum: "آونگ",
+    spring: "فنر و نوسان",
+    circuit: "مدار الکتریکی",
+    coulomb: "نیروی کولنی",
+    "kinematics-graph": "نمودار حرکت‌شناسی",
+    "atomic-transition": "گذار ترازهای انرژی",
+  };
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Physics diagram" style="max-width:100%;height:auto"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="#202a36"/></marker><marker id="axis" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0 0 L5 3 L0 6" fill="#303b49"/></marker></defs>${body}</svg>`;
-  return { svg, alt: `نمودار فیزیک: ${input.type}`, viewBox: "0 0 640 360" };
+  return { svg, alt: labels[input.type], viewBox: "0 0 640 360" };
 }
