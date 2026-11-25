@@ -34,6 +34,7 @@ const envSchema = z.object({
   COARENA_API_KEY_4: z.string().default(""),
   COARENA_API_KEY_5: z.string().default(""),
   COARENA_API_KEY_6: z.string().default(""),
+  COARENA_API_KEY_7: z.string().default(""),
   HF_TOKEN: z.string().default(""),
   CLOUDFLARE_API_TOKEN: z.string().default(""),
   CLOUDFLARE_ACCOUNT_ID: z.string().default(""),
