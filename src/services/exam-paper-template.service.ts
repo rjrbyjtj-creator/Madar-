@@ -11,6 +11,12 @@ export interface ExamPaperQuestion {
   figureAlt?: string;
 }
 
+export interface ExamAnswer {
+  number: number;
+  answer: string;
+  solution: string;
+}
+
 export interface ExamPaperData {
   examTitle: string;
   subject: string;
@@ -214,6 +220,71 @@ function renderQuestionBlocks(questions: ExamPaperQuestion[], languageMode = fal
         '<div class="qmark"><span>' + escapeHtml(faDigits(question.score)) + "</span></div>" +
       "</article>";
   }).join("\n");
+}
+
+
+function renderAnswerKeyBlocks(data: ExamPaperData, answers: ExamAnswer[], languageMode: boolean): string {
+  const answerMap = new Map(answers.map((item) => [item.number, item]));
+  return data.questions.map((question) => {
+    const answer = answerMap.get(question.number);
+    if (!answer) throw new Error("Answer key is missing question " + question.number + ".");
+    return '<article class="q answer-question">' +
+      '<div class="qnum"><span>' + escapeHtml(faDigits(question.number)) + "</span></div>" +
+      '<div class="qbody answer-body">' +
+        '<div class="answer-question-text"><b>صورت سؤال</b><div>' + renderQuestionText(question.text, languageMode) + "</div></div>" +
+        '<div class="answer-final"><b>پاسخ نهایی</b><div>' + renderQuestionText(answer.answer, languageMode) + "</div></div>" +
+        '<div class="answer-solution"><b>راه‌حل تشریحی</b><div>' + renderQuestionText(answer.solution, languageMode) + "</div></div>" +
+      "</div>" +
+      '<div class="qmark"><span>' + escapeHtml(faDigits(question.score)) + "</span></div>" +
+    "</article>";
+  }).join("\n");
+}
+
+/** Render a separate, teacher-facing answer key with step-by-step solutions. */
+export async function renderExamAnswerKeyHtml(data: ExamPaperData, answers: ExamAnswer[]): Promise<string> {
+  if (!data.questions.length || answers.length !== data.questions.length) {
+    throw new Error("A complete answer key is required for every exam question.");
+  }
+  const numbers = new Set(answers.map((item) => item.number));
+  if (numbers.size !== data.questions.length || data.questions.some((question) => !numbers.has(question.number))) {
+    throw new Error("Answer key question numbers must match the exam paper.");
+  }
+  const languageMode = /(?:زبان|انگلیسی|english)/i.test(data.subject + " " + data.examTitle);
+  const template = await readFile(TEMPLATE_PATH, "utf8");
+  const values: Record<string, string> = {
+    documentTitle: escapeHtml("پاسخ‌نامه تشریحی — " + data.examTitle + " — " + data.subject),
+    subjectClass: languageMode ? "language-exam" : "",
+    examTitle: escapeHtml("پاسخ‌نامه تشریحی | " + data.examTitle),
+    subject: escapeHtml(data.subject),
+    grade: escapeHtml(data.grade),
+    field: escapeHtml(data.field ?? ""),
+    duration: escapeHtml("نسخه ویژه دبیر"),
+    totalScore: escapeHtml(faDigits(data.totalScore)),
+    studentName: escapeHtml("ویژه دبیر"),
+    school: escapeHtml(data.school ?? ""),
+    className: escapeHtml(data.className ?? ""),
+    teacher: escapeHtml(data.teacher ?? ""),
+    examDate: escapeHtml(data.examDate ?? ""),
+    questionBlocks: renderAnswerKeyBlocks(data, answers, languageMode),
+  };
+  let rendered = template.replace(/\\{\\{([a-zA-Z]+)\\}\\}/g, (_match, key: string) => values[key] ?? "");
+  rendered = rendered
+    .replace("<span class='kicker'>آزمون کلاسی</span>", "<span class='kicker'>پاسخ‌نامه تشریحی</span>")
+    .replace("<span>شرح سؤال</span>", "<span>پاسخ و راه‌حل</span>")
+    .replace("مدار، نمونه سؤال", "مدار، پاسخ‌نامه تشریحی")
+    .replace("موفق و پیروز باشید", "پایان پاسخ‌نامه");
+  const answerStyles = [
+    ".answer-question{align-items:start!important}",
+    ".answer-body{gap:10px!important;padding-block:10px!important}",
+    ".answer-question-text,.answer-final,.answer-solution{font-size:13px;line-height:1.9;min-width:0}",
+    ".answer-question-text{padding-bottom:9px;border-bottom:1px solid #e5e7eb;color:#343a40}",
+    ".answer-final{padding:9px 11px;border-right:3px solid #1d4ed8;background:#f5f7fa;border-radius:6px}",
+    ".answer-solution{padding:9px 11px;border-right:3px solid #9ca3af}",
+    ".answer-question-text>b,.answer-final>b,.answer-solution>b{display:block;margin-bottom:4px;font-size:11px;color:#555;font-weight:800}",
+    ".answer-final .math-display,.answer-solution .math-display{overflow-x:auto}",
+    "@media print{.answer-question{break-inside:avoid!important;page-break-inside:avoid!important}.answer-final,.answer-solution{break-inside:avoid!important}}"
+  ].join("\n");
+  return rendered.replace("</head>", "<style id=\"madar-answer-key-styles\">" + answerStyles + PRINT_PAGINATION_STYLES + "</style>\n</head>");
 }
 
 /** Render questions inside the exact HTML template supplied by the user. */
