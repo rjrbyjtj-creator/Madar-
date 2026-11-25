@@ -45,7 +45,7 @@ test("places an ammeter in series without overlapping the resistor", () => {
   const { svg } = renderPhysicsDiagram(parsed);
   assert.match(svg, /<circle cx="260" cy="95" r="22"/);
   assert.match(svg, /<rect x="365" y="77" width="70"/);
-  assert.doesNotMatch(svg, /<rect x="285" y="77" width="70".*<circle cx="260"/);
+  assert.doesNotMatch(svg, /<rect x="285" y="77" width="70"/);
 });
 
 test("places a voltmeter on a parallel branch", () => {
