@@ -191,26 +191,28 @@ function renderStudentInfo(data: ExamPaperData): string {
 }
 
 function renderQuestionBlocks(questions: ExamPaperQuestion[], languageMode = false): string {
-  let currentSection = "";
   return questions.map((question) => {
-    const section = question.section?.trim() ?? "";
-    const sectionMarkup = section && section !== currentSection
-      ? (currentSection = section, '<div class="sec">' + svgIcon("bookmark") +
-          '<span class="st">' + escapeHtml(section) + "</span></div>")
-      : "";
     const lines = Math.max(1, Math.min(8, Math.floor(question.answerLines ?? 2)));
-    const answerLines = '<div class="ans" style="height:' + (lines * 22) + 'px"></div>';
+    const answerHeight = lines * 28;
+    const section = question.section?.trim() ?? "";
+    const sectionMarkup = section
+      ? '<div class="question-section">' + escapeHtml(section) + "</div>"
+      : "";
     const figureSvg = question.figureSvg ? sanitizeQuestionSvg(question.figureSvg) : "";
     const figureMarkup = figureSvg
       ? '<figure class="question-figure">' + figureSvg +
-        (question.figureAlt ? '<figcaption>' + escapeHtml(question.figureAlt) + "</figcaption>" : "") + "</figure>"
+        (question.figureAlt ? '<figcaption>' + escapeHtml(question.figureAlt) + "</figcaption>" : "") +
+        "</figure>"
       : "";
-    const questionContentClass = figureMarkup ? "question-content has-figure" : "question-content";
-    return sectionMarkup + '\n<div class="q">' +
-      '<div class="n"></div>' +
-      '<div><div class="' + questionContentClass + '"><div class="qt">' + renderQuestionText(question.text, languageMode) + "</div>" + figureMarkup + "</div>" + answerLines + "</div>" +
-      '<div class="b"><span class="bv">' + escapeHtml(faDigits(question.score)) + "</span></div>" +
-      "</div>";
+    return sectionMarkup +
+      '<article class="q">' +
+        '<div class="qnum"><span>' + escapeHtml(faDigits(question.number)) + "</span></div>" +
+        '<div class="qbody">' +
+          '<div class="qt"><div class="stem">' + renderQuestionText(question.text, languageMode) + "</div>" + figureMarkup + "</div>" +
+          '<div class="ans" style="height:' + answerHeight + 'px"></div>' +
+        "</div>" +
+        '<div class="qmark"><span>' + escapeHtml(faDigits(question.score)) + "</span></div>" +
+      "</article>";
   }).join("\n");
 }
 
@@ -224,7 +226,7 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
   const languageMode = /(?:زبان|انگلیسی|english)/i.test(data.subject + " " + data.examTitle);
   const template = await readFile(TEMPLATE_PATH, "utf8");
   const values: Record<string, string> = {
-    documentTitle: escapeHtml(data.examTitle),
+    documentTitle: escapeHtml(data.examTitle + " — " + data.subject),
     subjectClass: languageMode ? "language-exam" : "",
     examTitle: escapeHtml(data.examTitle),
     subject: escapeHtml(data.subject),
