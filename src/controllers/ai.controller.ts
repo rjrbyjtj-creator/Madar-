@@ -530,6 +530,9 @@ async function generateExamInStages(
         const eligible = candidateQuestions
           .map((question, index) => ({ question: question as Record<string, unknown>, index }))
           .filter(({ question }) =>
+            Boolean(question) &&
+            typeof question === "object" &&
+            !Array.isArray(question) &&
             typeof question.text === "string" &&
             ![...(question.text as string).matchAll(markPattern)].length
           );
