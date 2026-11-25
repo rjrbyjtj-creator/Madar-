@@ -1,6 +1,8 @@
 name: Physics diagram engine checks
 
 on:
+  push:
+    branches: [feat/physics-diagram-engine]
   pull_request:
     branches: [main]
     paths:
