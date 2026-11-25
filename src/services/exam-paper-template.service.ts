@@ -210,6 +210,6 @@ export async function renderExamPaperHtml(data: ExamPaperData): Promise<string> 
     examDate: escapeHtml(data.examDate ?? ""),
     questionBlocks: renderQuestionBlocks(data.questions, languageMode),
   };
-  const rendered = template.replace(/\\{\\{([a-zA-Z]+)\\}\\}/g, (_match, key: string) => values[key] ?? "");
+  const rendered = template.replace(/\{\{([a-zA-Z]+)\}\}/g, (_match, key: string) => values[key] ?? "");
   return rendered.replace("</head>", PRINT_PAGINATION_STYLES + "</head>");
 }
