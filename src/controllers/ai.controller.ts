@@ -517,8 +517,8 @@ async function generateExamInStages(
         const targetUnits = Math.round(requestedTotalScore * 4);
         const currentUnits = scores.map((score) => Math.round(Number(score) * 4));
         const isQuarterMark = scores.every((score) =>
-          Number.isFinite(score) && score > 0 &&
-          Math.abs(Number(score) * 4 - Math.round(Number(score) * 4)) < 0.001
+          typeof score === "number" && Number.isFinite(score) && score > 0 &&
+          Math.abs(score * 4 - Math.round(score * 4)) < 0.001
         );
         if (!isQuarterMark || Math.abs(currentSum * 4 - Math.round(currentSum * 4)) > 0.001) {
           throw new Error("بارم‌های تولیدشده مضرب معتبر ۰٫۲۵ نیستند و قابل اصلاح قطعی نیستند.");
