@@ -222,6 +222,16 @@ body{
   .bar{display:none!important}
 }
 
+
+/* Compact, textbook-style scientific figures */
+.question-content.has-figure{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.question-content.has-figure .qt{flex:1;min-width:0}
+.question-figure{flex:0 0 150px;width:150px;max-width:150px;margin:2px 0 0;display:flex;flex-direction:column;align-items:center;gap:3px;break-inside:avoid}
+.question-figure svg{display:block;width:100%;max-width:150px;height:auto;max-height:105px;overflow:visible}
+.question-figure figcaption{width:100%;font-size:9px;line-height:1.4;text-align:center;color:#555}
+@media(max-width:640px){.question-content.has-figure{gap:8px}.question-figure{flex-basis:118px;width:118px;max-width:118px}.question-figure svg{max-width:118px;max-height:88px}}
+@media print{.question-figure{flex-basis:39mm;width:39mm;max-width:39mm}.question-figure svg{max-width:39mm;max-height:27mm}}
+
 </style>
 
 <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},svg:{fontCache:"global"}};</script>
